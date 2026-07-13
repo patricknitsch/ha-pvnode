@@ -81,6 +81,22 @@ Standort-/Anlageeigenschaften, die pvnode nicht pro Dachfläche/String liefert
 – sie erscheinen deshalb ausschließlich am Übersichtsgerät statt an den
 einzelnen Dachflächen.
 
+## Energy-Dashboard
+
+Die Integration implementiert die gleiche Schnittstelle wie forecast.solar
+und Solcast, um im Energie-Dashboard als **Prognose der Solarerzeugung**
+ausgewählt werden zu können:
+
+1. **Einstellungen → Dashboards → Energie** → Solarleistung bearbeiten.
+2. Unter „Prognose Solarproduktion“ **pvnode** auswählen.
+
+Die Prognose enthält die kombinierte Leistung **aller Dachflächen** dieses
+pvnode-Kontos (nicht einzeln pro Dachfläche, analog dazu wie forecast.solar
+und Solcast pro Konfigurationseintrag jeweils eine kombinierte Prognose
+liefern). Mehrere Prognosequellen lassen sich im Energie-Dashboard ohnehin
+zu einer Solaranlage addieren, falls z. B. ein Teil der Anlage über eine
+andere Quelle prognostiziert werden soll.
+
 ## Lizenz
 
 MIT, siehe [LICENSE](LICENSE).

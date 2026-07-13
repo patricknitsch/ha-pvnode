@@ -62,6 +62,7 @@ class RoofForecast:
     """Parsed forecast data for a single roof surface (or an entire site)."""
 
     watts: dict[datetime, float] = field(default_factory=dict)
+    watt_hours_period: dict[datetime, float] = field(default_factory=dict)
     watts_clearsky: dict[datetime, float] = field(default_factory=dict)
     temperature: dict[datetime, float] = field(default_factory=dict)
     weather_code: dict[datetime, int] = field(default_factory=dict)
@@ -138,6 +139,7 @@ def _bucket_by_day(
 
         # 15-minute resolution: period energy = power (W) * 0.25 h
         period_energy = round(power * 0.25)
+        forecast.watt_hours_period[timestamp] = period_energy
         by_day[timestamp.date()] = by_day.get(timestamp.date(), 0) + period_energy
 
         if clearsky_key and entry.get(clearsky_key) is not None:
