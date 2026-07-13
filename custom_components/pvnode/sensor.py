@@ -156,6 +156,12 @@ class PvnodePowerSensor(PvnodeRoofEntity):
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_translation_key = "power"
+    # The "forecast" attribute holds the full multi-day time series, which can
+    # exceed the recorder's per-attribute size limit (16 KiB) once a few days
+    # of 15-minute values are configured. Recording historical values of a
+    # forecast-for-the-future attribute isn't meaningful anyway, so exclude it
+    # from the recorder entirely instead of truncating the data shown live.
+    _unrecorded_attributes = frozenset({"forecast"})
 
     def __init__(
         self,
