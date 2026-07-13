@@ -100,12 +100,15 @@
       "power": { "name": "Leistungsprognose" },
       "energy_today": { "name": "Energieprognose heute" },
       "energy_tomorrow": { "name": "Energieprognose morgen" },
+      "energy_offset": { "name": "Energieprognose in {day} Tagen" },
       "clearsky_power": { "name": "Klarhimmel-Leistung" },
       "temperature": { "name": "Temperaturprognose" },
       "weather_code": { "name": "Wettercode" },
       "total_power": { "name": "Gesamt-Leistungsprognose" },
       "total_energy_today": { "name": "Gesamt-Energieprognose heute" },
-      "total_energy_tomorrow": { "name": "Gesamt-Energieprognose morgen" }
+      "total_energy_tomorrow": { "name": "Gesamt-Energieprognose morgen" },
+      "total_energy_offset": { "name": "Gesamt-Energieprognose in {day} Tagen" },
+      "total_clearsky_power": { "name": "Gesamt-Klarhimmel-Leistung" }
     }
   }
 }

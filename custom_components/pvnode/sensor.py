@@ -2,8 +2,10 @@
 
 Every roof surface ("Dachfläche") gets its own device with its own set of
 sensors - forecasts are never merged into a single combined entity. An
-additional "total" device aggregates all roof surfaces for convenience once
-more than one is known.
+additional "pvnode" overview device aggregates power/energy totals across all
+roof surfaces, and is also the only place clear-sky power (when it can't be
+attributed to an individual roof), temperature and weather code are shown -
+those are site/location properties, not roof properties.
 """
 
 from __future__ import annotations
@@ -24,7 +26,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import API_VERSION_V2, CONF_API_VERSION, DOMAIN, MANUFACTURER
+from .const import (
+    API_VERSION_V1,
+    API_VERSION_V2,
+    CONF_API_VERSION,
+    DOMAIN,
+    MANUFACTURER,
+)
 from .coordinator import PvnodeDataUpdateCoordinator, PvnodeRoofData
 
 
@@ -34,20 +42,6 @@ async def async_setup_entry(
     """Set up pvnode sensors for a config entry."""
     coordinator: PvnodeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     added_roof_keys: set[str] = set()
-    summary_added = False
-
-    def _update_summary() -> None:
-        nonlocal summary_added
-        if summary_added or len(coordinator.data.roofs) <= 1:
-            return
-        summary_added = True
-        async_add_entities(
-            [
-                PvnodeTotalPowerSensor(coordinator, entry),
-                PvnodeTotalEnergySensor(coordinator, entry, "today"),
-                PvnodeTotalEnergySensor(coordinator, entry, "tomorrow"),
-            ]
-        )
 
     @callback
     def _add_roofs(roof_keys: set[str]) -> None:
@@ -59,24 +53,57 @@ async def async_setup_entry(
             new_entities.extend(_build_roof_entities(coordinator, entry, key))
         if new_entities:
             async_add_entities(new_entities)
-        _update_summary()
 
     _add_roofs(set(coordinator.data.roofs))
     entry.async_on_unload(coordinator.add_new_roof_listener(_add_roofs))
+
+    async_add_entities(_build_site_entities(coordinator, entry))
+
+
+def _apply_day_offset_translation(
+    entity: SensorEntity, offset: int, key_prefix: str
+) -> None:
+    """Pick a translation key/placeholder for a day-offset energy sensor."""
+    if offset == 0:
+        entity._attr_translation_key = f"{key_prefix}_today"
+    elif offset == 1:
+        entity._attr_translation_key = f"{key_prefix}_tomorrow"
+    else:
+        entity._attr_translation_key = f"{key_prefix}_offset"
+        entity._attr_translation_placeholders = {"day": str(offset)}
 
 
 def _build_roof_entities(
     coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry, roof_key: str
 ) -> list[SensorEntity]:
     """Build the full set of sensors for a single roof surface."""
-    return [
-        PvnodePowerSensor(coordinator, entry, roof_key),
-        PvnodeEnergySensor(coordinator, entry, roof_key, "today"),
-        PvnodeEnergySensor(coordinator, entry, roof_key, "tomorrow"),
-        PvnodeClearskyPowerSensor(coordinator, entry, roof_key),
-        PvnodeTemperatureSensor(coordinator, entry, roof_key),
-        PvnodeWeatherCodeSensor(coordinator, entry, roof_key),
-    ]
+    entities: list[SensorEntity] = [PvnodePowerSensor(coordinator, entry, roof_key)]
+    entities.extend(
+        PvnodeEnergySensor(coordinator, entry, roof_key, offset)
+        for offset in range(coordinator.forecast_days)
+    )
+    if entry.data[CONF_API_VERSION] == API_VERSION_V1:
+        # Only API v1 fetches each roof surface individually, so clear-sky
+        # power is genuinely roof-specific here. API v2 only returns
+        # clear-sky/temperature/weather for the site as a whole (see
+        # `_build_site_entities`), never per string.
+        entities.append(PvnodeClearskyPowerSensor(coordinator, entry, roof_key))
+    return entities
+
+
+def _build_site_entities(
+    coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+) -> list[SensorEntity]:
+    """Build the sensors for the pvnode overview ("total") device."""
+    entities: list[SensorEntity] = [PvnodeTotalPowerSensor(coordinator, entry)]
+    entities.extend(
+        PvnodeTotalEnergySensor(coordinator, entry, offset)
+        for offset in range(coordinator.forecast_days)
+    )
+    entities.append(PvnodeSiteClearskyPowerSensor(coordinator, entry))
+    entities.append(PvnodeSiteTemperatureSensor(coordinator, entry))
+    entities.append(PvnodeSiteWeatherCodeSensor(coordinator, entry))
+    return entities
 
 
 class PvnodeRoofEntity(CoordinatorEntity[PvnodeDataUpdateCoordinator], SensorEntity):
@@ -161,7 +188,7 @@ class PvnodePowerSensor(PvnodeRoofEntity):
 
 
 class PvnodeEnergySensor(PvnodeRoofEntity):
-    """Forecast energy total (today/tomorrow) for a roof surface."""
+    """Forecast energy total for one day (today, tomorrow, ...) of a roof surface."""
 
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
@@ -171,13 +198,13 @@ class PvnodeEnergySensor(PvnodeRoofEntity):
         coordinator: PvnodeDataUpdateCoordinator,
         entry: ConfigEntry,
         roof_key: str,
-        day: str,
+        day_offset: int,
     ) -> None:
-        """Initialize the energy sensor for "today" or "tomorrow"."""
+        """Initialize the energy sensor for the given day offset (0=today)."""
         super().__init__(coordinator, entry, roof_key)
-        self._day = day
-        self._attr_unique_id = f"{entry.entry_id}_{roof_key}_energy_{day}"
-        self._attr_translation_key = f"energy_{day}"
+        self._day_offset = day_offset
+        self._attr_unique_id = f"{entry.entry_id}_{roof_key}_energy_day{day_offset}"
+        _apply_day_offset_translation(self, day_offset, "energy")
 
     @property
     def native_value(self) -> float | None:
@@ -185,19 +212,16 @@ class PvnodeEnergySensor(PvnodeRoofEntity):
         roof = self._roof
         if not roof:
             return None
-        target = dt_util.now().date()
-        if self._day == "tomorrow":
-            target += timedelta(days=1)
+        target = dt_util.now().date() + timedelta(days=self._day_offset)
         return roof.forecast.energy_for(target)
 
 
 class PvnodeClearskyPowerSensor(PvnodeRoofEntity):
-    """Clear-sky reference power for a roof surface (pvnode extension)."""
+    """Clear-sky reference power for a roof surface (pvnode API v1 only)."""
 
     _attr_device_class = SensorDeviceClass.POWER
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "clearsky_power"
 
     def __init__(
@@ -217,57 +241,8 @@ class PvnodeClearskyPowerSensor(PvnodeRoofEntity):
         return roof.forecast.current_clearsky_power if roof else None
 
 
-class PvnodeTemperatureSensor(PvnodeRoofEntity):
-    """Forecast temperature for a roof surface (pvnode extension)."""
-
-    _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_registry_enabled_default = False
-    _attr_translation_key = "temperature"
-
-    def __init__(
-        self,
-        coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
-        roof_key: str,
-    ) -> None:
-        """Initialize the temperature sensor."""
-        super().__init__(coordinator, entry, roof_key)
-        self._attr_unique_id = f"{entry.entry_id}_{roof_key}_temperature"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the forecast temperature for the current time slot."""
-        roof = self._roof
-        return roof.forecast.current_temperature if roof else None
-
-
-class PvnodeWeatherCodeSensor(PvnodeRoofEntity):
-    """WMO weather code for a roof surface (pvnode extension)."""
-
-    _attr_entity_registry_enabled_default = False
-    _attr_translation_key = "weather_code"
-
-    def __init__(
-        self,
-        coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
-        roof_key: str,
-    ) -> None:
-        """Initialize the weather code sensor."""
-        super().__init__(coordinator, entry, roof_key)
-        self._attr_unique_id = f"{entry.entry_id}_{roof_key}_weather_code"
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the WMO weather code for the current time slot."""
-        roof = self._roof
-        return roof.forecast.current_weather_code if roof else None
-
-
 class PvnodeTotalEntity(CoordinatorEntity[PvnodeDataUpdateCoordinator], SensorEntity):
-    """Base class for entities aggregating all roof surfaces of one entry."""
+    """Base class for entities on the pvnode overview device (site-wide)."""
 
     _attr_has_entity_name = True
 
@@ -318,28 +293,29 @@ class PvnodeTotalPowerSensor(PvnodeTotalEntity):
 
 
 class PvnodeTotalEnergySensor(PvnodeTotalEntity):
-    """Total forecast energy (today/tomorrow) across all roof surfaces."""
+    """Total forecast energy for one day across all roof surfaces."""
 
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
 
     def __init__(
-        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry, day: str
+        self,
+        coordinator: PvnodeDataUpdateCoordinator,
+        entry: ConfigEntry,
+        day_offset: int,
     ) -> None:
-        """Initialize the total energy sensor for "today" or "tomorrow"."""
+        """Initialize the total energy sensor for the given day offset (0=today)."""
         super().__init__(coordinator, entry)
-        self._day = day
-        self._attr_unique_id = f"{entry.entry_id}_total_energy_{day}"
-        self._attr_translation_key = f"total_energy_{day}"
+        self._day_offset = day_offset
+        self._attr_unique_id = f"{entry.entry_id}_total_energy_day{day_offset}"
+        _apply_day_offset_translation(self, day_offset, "total_energy")
 
     @property
     def native_value(self) -> float | None:
         """Return the summed forecast energy total of all roof surfaces."""
         if not self.coordinator.data:
             return None
-        target = dt_util.now().date()
-        if self._day == "tomorrow":
-            target += timedelta(days=1)
+        target = dt_util.now().date() + timedelta(days=self._day_offset)
         total = 0.0
         found = False
         for roof in self.coordinator.data.roofs.values():
@@ -348,3 +324,74 @@ class PvnodeTotalEnergySensor(PvnodeTotalEntity):
                 total += value
                 found = True
         return total if found else None
+
+
+class PvnodeSiteClearskyPowerSensor(PvnodeTotalEntity):
+    """Site-wide clear-sky reference power.
+
+    For API v1 this is the sum of every roof surface's own clear-sky power
+    (each roof genuinely has its own). For API v2 this is the single
+    site-wide value reported by pvnode - it can't be split per roof surface.
+    """
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_translation_key = "total_clearsky_power"
+
+    def __init__(
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the site-wide clear-sky power sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_total_clearsky_power"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the site-wide clear-sky power for the current time slot."""
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.site.current_clearsky_power
+
+
+class PvnodeSiteTemperatureSensor(PvnodeTotalEntity):
+    """Site-wide forecast temperature (pvnode extension)."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_translation_key = "temperature"
+
+    def __init__(
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the site-wide temperature sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_temperature"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the site-wide forecast temperature for the current time slot."""
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.site.current_temperature
+
+
+class PvnodeSiteWeatherCodeSensor(PvnodeTotalEntity):
+    """Site-wide WMO weather code (pvnode extension)."""
+
+    _attr_translation_key = "weather_code"
+
+    def __init__(
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the site-wide weather code sensor."""
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_weather_code"
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the site-wide WMO weather code for the current time slot."""
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.site.current_weather_code

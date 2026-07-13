@@ -64,13 +64,22 @@ Jede Dachfläche wird als **eigenes Gerät** angelegt (nicht zu einer
 gemeinsamen Entität zusammengefasst) mit folgenden Sensoren:
 
 - Leistungsprognose (W, aktueller Zeitschritt, inkl. Zeitreihe als Attribut)
-- Energieprognose heute / morgen (Wh)
-- Klarhimmel-Leistung, Temperaturprognose, Wettercode (deaktiviert per
-  Default, da nur bei API v2 auf die erste Dachfläche bezogen)
+- Energieprognose pro konfiguriertem Prognosetag (heute, morgen, ... –
+  richtet sich nach der eingestellten Anzahl Prognosetage)
+- Klarhimmel-Leistung **nur bei API v1**, da dort jede Dachfläche einzeln
+  abgefragt wird und somit einen echten, eigenen Wert hat
 
-Sind mehrere Dachflächen konfiguriert, legt die Integration zusätzlich ein
-„Übersicht“-Gerät mit summierten Gesamtwerten (Leistung, Energie heute/morgen)
-an.
+Zusätzlich legt die Integration immer ein **„pvnode“-Übersichtsgerät** an mit:
+
+- Gesamt-Leistungs- und Gesamt-Energieprognose (Summe aller Dachflächen)
+- Gesamt-Klarhimmel-Leistung (bei API v1 die Summe aller Dachflächen, bei
+  API v2 der von pvnode gelieferte Wert für die gesamte Anlage)
+- Temperaturprognose und Wettercode
+
+Temperatur, Wettercode und (bei API v2) Klarhimmel-Leistung sind
+Standort-/Anlageeigenschaften, die pvnode nicht pro Dachfläche/String liefert
+– sie erscheinen deshalb ausschließlich am Übersichtsgerät statt an den
+einzelnen Dachflächen.
 
 ## Lizenz
 

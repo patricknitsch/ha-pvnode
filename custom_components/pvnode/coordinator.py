@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
@@ -60,9 +61,15 @@ class PvnodeRoofData:
 
 @dataclass
 class PvnodeData:
-    """All data produced by one coordinator refresh."""
+    """All data produced by one coordinator refresh.
+
+    `site` only carries clear-sky power, temperature and weather code - these
+    are location/site-wide properties, not meaningfully tied to a single roof
+    surface, so they are only ever shown on the pvnode overview device.
+    """
 
     roofs: dict[str, PvnodeRoofData] = field(default_factory=dict)
+    site: RoofForecast = field(default_factory=RoofForecast)
 
 
 class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
@@ -156,7 +163,11 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
         extra_params = self.entry.options.get(CONF_EXTRA_PARAMS)
 
         roofs: dict[str, PvnodeRoofData] = {}
-        for roof in roofs_cfg:
+        site_clearsky: dict[datetime, float] = {}
+        site_temperature: dict[datetime, float] = {}
+        site_weather_code: dict[datetime, int] = {}
+
+        for position, roof in enumerate(roofs_cfg):
             raw = await self.api.async_get_v1_forecast(
                 latitude=latitude,
                 longitude=longitude,
@@ -172,7 +183,21 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
                 key=key, name=roof[CONF_ROOF_NAME], forecast=forecast
             )
 
-        return PvnodeData(roofs=roofs)
+            # Clear-sky power is roof-specific (depends on tilt/azimuth/power)
+            # and adds up like regular power. Temperature/weather are location
+            # properties - identical for every roof, so just take the first.
+            for timestamp, value in forecast.watts_clearsky.items():
+                site_clearsky[timestamp] = site_clearsky.get(timestamp, 0) + value
+            if position == 0:
+                site_temperature = forecast.temperature
+                site_weather_code = forecast.weather_code
+
+        site = RoofForecast(
+            watts_clearsky=site_clearsky,
+            temperature=site_temperature,
+            weather_code=site_weather_code,
+        )
+        return PvnodeData(roofs=roofs, site=site)
 
     async def _async_update_v2(self) -> PvnodeData:
         """Fetch a v2 forecast for the whole site and split it per roof surface."""
@@ -191,15 +216,11 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
         roofs: dict[str, PvnodeRoofData] = {}
 
         if string_indexes:
-            for position, index in enumerate(string_indexes):
+            # Strings don't carry clear-sky/temperature/weather - those only
+            # exist in the site-wide `values` array (see `site` below), so
+            # per-roof forecasts here are power-only.
+            for index in string_indexes:
                 forecast = parse_v2_string_response(raw, index, tz)
-                if position == 0:
-                    # Clear-sky/temperature/weather are site-wide, not per-string.
-                    # Surface them once on the first discovered roof surface only,
-                    # to avoid multiplying the site total in HA statistics.
-                    forecast.watts_clearsky = site_forecast.watts_clearsky
-                    forecast.temperature = site_forecast.temperature
-                    forecast.weather_code = site_forecast.weather_code
                 key = f"string_{index}"
                 roofs[key] = PvnodeRoofData(
                     key=key, name=f"Dachfläche {index + 1}", forecast=forecast
@@ -211,4 +232,9 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
                 key=SITE_ROOF_KEY, name="Dachfläche", forecast=site_forecast
             )
 
-        return PvnodeData(roofs=roofs)
+        site = RoofForecast(
+            watts_clearsky=site_forecast.watts_clearsky,
+            temperature=site_forecast.temperature,
+            weather_code=site_forecast.weather_code,
+        )
+        return PvnodeData(roofs=roofs, site=site)
