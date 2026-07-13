@@ -1,0 +1,111 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "pvnode",
+        "description": "Verbinde dein pvnode-Konto. Einen API-Schlüssel erstellst du unter https://pvnode.com.",
+        "data": {
+          "name": "Name",
+          "api_version": "API-Version",
+          "api_key": "API-Schlüssel"
+        }
+      },
+      "site": {
+        "title": "pvnode Site",
+        "description": "Gib die Site-ID aus deinem pvnode-Portal ein (https://pvnode.com/sites/new). Die Dachflächen dieser Site werden automatisch erkannt - eine weitere Konfiguration ist nicht nötig.",
+        "data": {
+          "site_id": "Site-ID",
+          "tier": "Abonnementstufe",
+          "forecast_days": "Prognosetage"
+        }
+      },
+      "roof": {
+        "title": "Dachfläche",
+        "description": "Konfiguriere eine Dachfläche für die pvnode API v1. Füge für jede Dachfläche/Anlage einen eigenen Eintrag hinzu.",
+        "data": {
+          "name": "Name",
+          "azimuth": "Azimut (-180/180=Norden, -90=Osten, 0=Süden, 90=Westen)",
+          "tilt": "Neigung (0=horizontal, 90=senkrecht)",
+          "peak_power": "Spitzenleistung (kWp)",
+          "add_another": "Weitere Dachfläche hinzufügen"
+        }
+      },
+      "general": {
+        "title": "Abonnement & Prognose",
+        "description": "Diese Einstellungen steuern das Abfrageintervall und den Prognosezeitraum.",
+        "data": {
+          "tier": "Abonnementstufe",
+          "forecast_days": "Prognosetage",
+          "extra_params": "Zusätzliche API-Parameter (optional)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Bei pvnode erneut anmelden",
+        "description": "Die pvnode-API hat den gespeicherten API-Schlüssel abgelehnt. Bitte gib einen neuen ein.",
+        "data": {
+          "api_key": "API-Schlüssel"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültiger API-Schlüssel",
+      "cannot_connect": "Verbindung zur pvnode-API nicht möglich",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "already_configured": "Dieses pvnode-Konto/diese Site ist bereits eingerichtet",
+      "reauth_successful": "Erneute Authentifizierung war erfolgreich"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "pvnode-Einstellungen",
+        "menu_options": {
+          "general": "Abonnement & Prognose",
+          "add_roof": "Dachfläche hinzufügen",
+          "remove_roof": "Dachfläche entfernen"
+        }
+      },
+      "general": {
+        "title": "Abonnement & Prognose",
+        "data": {
+          "tier": "Abonnementstufe",
+          "forecast_days": "Prognosetage",
+          "extra_params": "Zusätzliche API-Parameter (optional)"
+        }
+      },
+      "add_roof": {
+        "title": "Dachfläche hinzufügen",
+        "data": {
+          "name": "Name",
+          "azimuth": "Azimut (-180/180=Norden, -90=Osten, 0=Süden, 90=Westen)",
+          "tilt": "Neigung (0=horizontal, 90=senkrecht)",
+          "peak_power": "Spitzenleistung (kWp)"
+        }
+      },
+      "remove_roof": {
+        "title": "Dachfläche(n) entfernen",
+        "data": {
+          "roofs": "Zu entfernende Dachflächen"
+        }
+      }
+    },
+    "abort": {
+      "no_roofs": "Es sind keine Dachflächen zum Entfernen vorhanden"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": { "name": "Leistungsprognose" },
+      "energy_today": { "name": "Energieprognose heute" },
+      "energy_tomorrow": { "name": "Energieprognose morgen" },
+      "clearsky_power": { "name": "Klarhimmel-Leistung" },
+      "temperature": { "name": "Temperaturprognose" },
+      "weather_code": { "name": "Wettercode" },
+      "total_power": { "name": "Gesamt-Leistungsprognose" },
+      "total_energy_today": { "name": "Gesamt-Energieprognose heute" },
+      "total_energy_tomorrow": { "name": "Gesamt-Energieprognose morgen" }
+    }
+  }
+}

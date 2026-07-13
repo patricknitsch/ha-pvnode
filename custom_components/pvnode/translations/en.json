@@ -1,0 +1,111 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "pvnode",
+        "description": "Connect your pvnode account. Create an API key at https://pvnode.com.",
+        "data": {
+          "name": "Name",
+          "api_version": "API version",
+          "api_key": "API key"
+        }
+      },
+      "site": {
+        "title": "pvnode Site",
+        "description": "Enter the Site ID from your pvnode portal (https://pvnode.com/sites/new). Roof surfaces configured for this site are detected automatically - no further setup needed.",
+        "data": {
+          "site_id": "Site ID",
+          "tier": "Subscription tier",
+          "forecast_days": "Forecast days"
+        }
+      },
+      "roof": {
+        "title": "Roof surface",
+        "description": "Configure a roof surface for pvnode API v1. Add one entry per roof surface / array.",
+        "data": {
+          "name": "Name",
+          "azimuth": "Azimuth (-180/180=North, -90=East, 0=South, 90=West)",
+          "tilt": "Tilt (0=horizontal, 90=vertical)",
+          "peak_power": "Peak power (kWp)",
+          "add_another": "Add another roof surface"
+        }
+      },
+      "general": {
+        "title": "Subscription & forecast",
+        "description": "These settings control the poll interval and forecast horizon.",
+        "data": {
+          "tier": "Subscription tier",
+          "forecast_days": "Forecast days",
+          "extra_params": "Extra API parameters (optional)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with pvnode",
+        "description": "The pvnode API rejected the stored API key. Please enter a new one.",
+        "data": {
+          "api_key": "API key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API key",
+      "cannot_connect": "Cannot connect to the pvnode API",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This pvnode account/site is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "pvnode options",
+        "menu_options": {
+          "general": "Subscription & forecast",
+          "add_roof": "Add roof surface",
+          "remove_roof": "Remove roof surface"
+        }
+      },
+      "general": {
+        "title": "Subscription & forecast",
+        "data": {
+          "tier": "Subscription tier",
+          "forecast_days": "Forecast days",
+          "extra_params": "Extra API parameters (optional)"
+        }
+      },
+      "add_roof": {
+        "title": "Add roof surface",
+        "data": {
+          "name": "Name",
+          "azimuth": "Azimuth (-180/180=North, -90=East, 0=South, 90=West)",
+          "tilt": "Tilt (0=horizontal, 90=vertical)",
+          "peak_power": "Peak power (kWp)"
+        }
+      },
+      "remove_roof": {
+        "title": "Remove roof surface(s)",
+        "data": {
+          "roofs": "Roof surfaces to remove"
+        }
+      }
+    },
+    "abort": {
+      "no_roofs": "There are no roof surfaces to remove"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": { "name": "Power forecast" },
+      "energy_today": { "name": "Energy forecast today" },
+      "energy_tomorrow": { "name": "Energy forecast tomorrow" },
+      "clearsky_power": { "name": "Clear-sky power" },
+      "temperature": { "name": "Temperature forecast" },
+      "weather_code": { "name": "Weather code" },
+      "total_power": { "name": "Total power forecast" },
+      "total_energy_today": { "name": "Total energy forecast today" },
+      "total_energy_tomorrow": { "name": "Total energy forecast tomorrow" }
+    }
+  }
+}

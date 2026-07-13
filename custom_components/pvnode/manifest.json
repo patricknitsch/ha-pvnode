@@ -1,0 +1,12 @@
+{
+  "domain": "pvnode",
+  "name": "pvnode",
+  "codeowners": ["@patricknitsch"],
+  "config_flow": true,
+  "documentation": "https://github.com/patricknitsch/ha-pvnode",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/patricknitsch/ha-pvnode/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

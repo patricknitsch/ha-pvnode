@@ -1,0 +1,6 @@
+{
+  "name": "pvnode",
+  "content_in_root": false,
+  "homeassistant": "2024.3.0",
+  "render_readme": true
+}
