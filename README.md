@@ -1,190 +1,192 @@
 # ha-pvnode
 
-Home Assistant Integration für den PV-Prognosedienst [pvnode](https://pvnode.com).
+[![hacs_badge][hacsbadge]][hacs] [![hainstall][hainstallbadge]][hainstall]
 
-Sie orientiert sich an der pvnode-Anbindung des ioBroker-Adapters
+Home Assistant integration for the PV forecast service [pvnode](https://pvnode.com).
+
+It follows the pvnode integration of the ioBroker adapter
 [ioBroker.pvforecast](https://github.com/iobroker-community-adapters/ioBroker.pvforecast)
-und unterstützt sowohl **API v1** als auch **API v2**.
+and supports both **API v1** and **API v2**.
 
-## Voraussetzungen
+## Prerequisites
 
-- Ein [pvnode](https://pvnode.com)-Konto mit API-Schlüssel.
-- Für API v2 (empfohlen) zusätzlich eine unter <https://pvnode.com/sites/new>
-  angelegte Site mit mindestens einer konfigurierten Anlage.
+- A [pvnode](https://pvnode.com) account with an API key.
+- For API v2 (recommended), a site created at
+  <https://pvnode.com/sites/new> with at least one configured plant.
 
 ## Installation
 
-### Über HACS (empfohlen)
+### Via HACS (recommended)
 
-1. HACS → Integrationen → Menü „⋮“ → „Benutzerdefinierte Repositories“.
-2. Dieses Repository (`patricknitsch/ha-pvnode`) als Repository vom Typ
-   „Integration“ hinzufügen.
-3. „pvnode“ installieren und Home Assistant neu starten.
+1. HACS → Integrations → "⋮" menu → "Custom repositories".
+2. Add this repository (`patricknitsch/ha-pvnode`) as a repository of type
+   "Integration".
+3. Install "pvnode" and restart Home Assistant.
 
-### Manuell
+### Manual
 
-1. Ordner `custom_components/pvnode` in das `custom_components`-Verzeichnis
-   deiner Home-Assistant-Konfiguration kopieren.
-2. Home Assistant neu starten.
-3. **Einstellungen → Geräte & Dienste → Integration hinzufügen → „pvnode“** wählen.
+1. Copy the `custom_components/pvnode` folder into the `custom_components`
+   directory of your Home Assistant configuration.
+2. Restart Home Assistant.
+3. Go to **Settings → Devices & Services → Add Integration → "pvnode"**.
 
-## Einrichtung
+## Setup
 
-Beim Hinzufügen der Integration wählst du zunächst die **API-Version**:
+When adding the integration, you first choose the **API version**:
 
-### API v2 (empfohlen)
+### API v2 (recommended)
 
-- Nur der **API-Schlüssel** und die **Site-ID** aus dem pvnode-Portal
-  (erstellbar unter <https://pvnode.com/sites/new>) werden benötigt.
-- Die **Dachflächen** (Ausrichtung, Neigung, Leistung) sind bereits im
-  pvnode-Portal hinterlegt und werden **automatisch abgerufen** – jede
-  konfigurierte Anlage erscheint als eigene Dachfläche in Home Assistant,
-  ganz ohne weitere lokale Konfiguration.
-- Neue, im Portal hinzugefügte Dachflächen werden bei einer der folgenden
-  Aktualisierungen automatisch als neue Geräte in Home Assistant angelegt.
+- Only the **API key** and the **Site ID** from the pvnode portal (created at
+  <https://pvnode.com/sites/new>) are required.
+- The **roof surfaces** (orientation, tilt, power) are already stored in the
+  pvnode portal and are **fetched automatically** - every configured plant
+  shows up as its own roof surface in Home Assistant, with no further local
+  configuration needed.
+- New roof surfaces added in the portal are automatically created as new
+  devices in Home Assistant on one of the following refreshes.
 
-### API v1 (veraltet)
+### API v1 (deprecated)
 
-pvnode schaltet API v1 zum **31.12.2026** ab; ab dem 01.01.2027 liefert diese
-Integration dann keine Daten mehr über v1. Nutze für Neueinrichtungen API v2.
+pvnode is shutting down API v1 on **2026-12-31**; from 2027-01-01 onward this
+integration will no longer return data over v1. Use API v2 for new setups.
 
-- Für jede Dachfläche werden **Name, Azimut, Neigung und Spitzenleistung**
-  manuell eingegeben (kann direkt im Einrichtungsdialog wiederholt werden,
-  um mehrere Dachflächen anzulegen).
-- Azimut-Konvention wie bei forecast.solar: `-180/180=Norden, -90=Osten,
-  0=Süden, 90=Westen`.
-- Standort wird aus der Home-Assistant-Konfiguration übernommen.
+- For each roof surface, **name, azimuth, tilt and peak power** are entered
+  manually (the setup dialog can be repeated to add multiple roof surfaces).
+- Azimuth convention matches forecast.solar: `-180/180=North, -90=East,
+  0=South, 90=West`.
+- The location is taken from the Home Assistant configuration.
 
-### Gemeinsame Einstellungen
+### Shared settings
 
-- **Abonnementstufe** (Free/Light/Plus) – bestimmt automatisch das
-  Abfrageintervall (Free: 24 h, Light: 60 min, Plus: 10 min) sowie das
-  maximale Prognosefenster (Free: 2 Tage, Light/Plus: 7 Tage).
-- **Anzahl Prognosetage** – wird passend zur gewählten Stufe begrenzt.
-- Über **Einstellungen → Integration konfigurieren** lassen sich Abonnement,
-  Prognosetage und (bei API v1) Dachflächen jederzeit nachträglich anpassen.
-- Über das „⋮“-Menü des Integrationseintrags → **Neu konfigurieren** lässt sich
-  der API-Schlüssel (und bei API v2 die Site-ID) austauschen, ohne den Eintrag
-  zu löschen und neu anzulegen.
+- **Subscription tier** (Free/Light/Plus) - automatically determines the
+  polling interval (Free: 24 h, Light: 60 min, Plus: 10 min) and the maximum
+  forecast horizon (Free: 2 days, Light/Plus: 7 days).
+- **Number of forecast days** - clamped to whatever the selected tier allows.
+- Go to **Settings → Configure integration** to change the subscription tier,
+  number of forecast days and (for API v1) roof surfaces at any time.
+- Use the "⋮" menu on the integration entry → **Reconfigure** to replace the
+  API key (and, for API v2, the Site ID) without deleting and re-adding the
+  entry.
 
-## Entitäten
+## Entities
 
-Jede Dachfläche wird als **eigenes Gerät** angelegt (nicht zu einer
-gemeinsamen Entität zusammengefasst) mit folgenden Sensoren:
+Every roof surface is created as its **own device** (never merged into a
+single combined entity), with the following sensors:
 
-- Leistungsprognose (W, aktueller Zeitschritt, inkl. Zeitreihe als Attribut
-  `forecast`)
-- Energieprognose pro konfiguriertem Prognosetag (heute, morgen, ... –
-  richtet sich nach der eingestellten Anzahl Prognosetage)
-- Klarhimmel-Leistung **nur bei API v1**, da dort jede Dachfläche einzeln
-  abgefragt wird und somit einen echten, eigenen Wert hat
+- Power forecast (W, current time slot, including a time series in the
+  `forecast` attribute)
+- Energy forecast per configured forecast day (today, tomorrow, ... - based
+  on the configured number of forecast days)
+- Clear-sky power **only for API v1**, since each roof surface is fetched
+  individually there and therefore has a genuine value of its own
 
-Zusätzlich legt die Integration immer ein **„pvnode“-Übersichtsgerät** an mit:
+The integration also always creates a **"pvnode" overview device** with:
 
-- Gesamt-Leistungs- und Gesamt-Energieprognose (Summe aller Dachflächen,
-  ebenfalls inkl. `forecast`-Attribut)
-- Gesamt-Klarhimmel-Leistung (bei API v1 die Summe aller Dachflächen, bei
-  API v2 der von pvnode gelieferte Wert für die gesamte Anlage)
-- Temperaturprognose und Wettercode
+- Total power and total energy forecast (sum of all roof surfaces, also
+  including a `forecast` attribute)
+- Total clear-sky power (for API v1, the sum of all roof surfaces; for API
+  v2, the value pvnode reports for the whole plant)
+- Temperature forecast and weather code
 
-Jeder dieser Sensoren trägt sein eigenes `forecast`-Attribut: eine Liste mit
-einem Objekt pro 15-Minuten-Zeitschritt (nur Tageslichtstunden, über alle
-konfigurierten Prognosetage), das ausschließlich `datetime` und die eine zu
-diesem Sensor passende Kennzahl enthält (`watts`, `watts_clearsky`,
-`temperature` bzw. `weather_code`) - bewusst **nicht** in einem einzigen
-großen, kombinierten Attribut, damit jedes einzelne Attribut klein bleibt.
-Bei API-v2-Dachflächen/Strings gibt es nur `watts`, da pvnode Klarhimmel,
-Temperatur und Wettercode dort nicht pro String liefert - am Übersichtsgerät
-stehen alle vier Kennzahlen für **beide** API-Versionen zur Verfügung, da sie
-dort aus der Summe aller Dachflächen bzw. den Standort-Werten stammen.
+Each of these sensors carries its own `forecast` attribute: a list with one
+object per 15-minute time slot (daylight hours only, across all configured
+forecast days), containing only `datetime` and the one metric matching that
+sensor (`watts`, `watts_clearsky`, `temperature` or `weather_code`) -
+deliberately not merged into one large combined attribute, so each individual
+attribute stays small. For API v2 roof surfaces/strings there is only
+`watts`, since pvnode doesn't report clear-sky power, temperature or weather
+code per string there - at the overview device, all four metrics are
+available for **both** API versions, since they're derived from the summed
+roof data and the site-wide values respectively.
 
-Alle `forecast`-Attribute werden bewusst **nicht** vom Recorder in der
-History-Datenbank gespeichert (`_unrecorded_attributes`), da sie je nach
-Anzahl Prognosetage mehrere KB groß werden können. Für Auswertungen
-außerhalb von Home Assistant (z. B. InfluxDB) eignen sie sich trotzdem,
-sofern die empfangende Integration selbst auf Zustandsänderungen reagiert
-und das jeweilige Attribut ausliest.
+All `forecast` attributes are deliberately **excluded** from being stored by
+the recorder in the history database (`_unrecorded_attributes`), since they
+can grow to several KB depending on the number of forecast days. They are
+still useful for analysis outside Home Assistant (e.g. InfluxDB), provided
+the receiving integration itself reacts to state changes and reads out the
+attribute.
 
-Temperatur, Wettercode und (bei API v2) Klarhimmel-Leistung sind
-Standort-/Anlageeigenschaften, die pvnode nicht pro Dachfläche/String liefert
-– sie erscheinen deshalb ausschließlich am Übersichtsgerät statt an den
-einzelnen Dachflächen.
+Temperature, weather code and (for API v2) clear-sky power are
+location/plant properties that pvnode doesn't report per roof surface/string
+- they therefore only appear on the overview device, not on the individual
+roof surfaces.
 
-## Energy-Dashboard
+## Energy Dashboard
 
-Die Integration implementiert die gleiche Schnittstelle wie forecast.solar
-und Solcast, um im Energie-Dashboard als **Prognose der Solarerzeugung**
-ausgewählt werden zu können:
+The integration implements the same interface as forecast.solar and Solcast,
+so it can be selected in the Energy dashboard as a **solar production
+forecast**:
 
-1. **Einstellungen → Dashboards → Energie** → Solarleistung bearbeiten.
-2. Unter „Prognose Solarproduktion“ **pvnode** auswählen.
+1. **Settings → Dashboards → Energy** → edit solar production.
+2. Under "Solar production forecast", select **pvnode**.
 
-Die Prognose enthält die kombinierte Leistung **aller Dachflächen** dieses
-pvnode-Kontos (nicht einzeln pro Dachfläche, analog dazu wie forecast.solar
-und Solcast pro Konfigurationseintrag jeweils eine kombinierte Prognose
-liefern). Mehrere Prognosequellen lassen sich im Energie-Dashboard ohnehin
-zu einer Solaranlage addieren, falls z. B. ein Teil der Anlage über eine
-andere Quelle prognostiziert werden soll.
+The forecast contains the combined power of **all roof surfaces** of this
+pvnode account (not per roof surface, the same way forecast.solar and
+Solcast each provide one combined forecast per config entry). Multiple
+forecast sources can be added together for a single solar installation in
+the Energy dashboard anyway, e.g. if part of the installation should be
+forecast by a different source.
 
-## Anwendungsfälle
+## Use Cases
 
-- **Energie-Dashboard**: Solarprognose vs. tatsächliche Erzeugung vergleichen
-  (siehe oben).
-- **Automatisierungen**: z. B. Verbraucher (Wallbox, Warmwasser) starten, wenn
-  `sensor.pvnode_total_power_forecast` einen Schwellenwert übersteigt, oder auf
-  Basis der Energieprognose für morgen den Ladezustand eines
-  Batteriespeichers planen.
-- **Verschattungs-/Ausrichtungsvergleich**: bei mehreren Dachflächen die
-  einzelnen Leistungsprognosen gegenüberstellen, um z. B. eine verschattete
-  Fläche zu erkennen.
+- **Energy Dashboard**: compare the solar forecast against actual production
+  (see above).
+- **Automations**: e.g. start a consumer (EV charger, water heater) once
+  `sensor.pvnode_total_power_forecast` exceeds a threshold, or plan a battery
+  storage charge state based on tomorrow's energy forecast.
+- **Shading/orientation comparison**: with multiple roof surfaces, compare
+  the individual power forecasts, e.g. to spot a shaded surface.
 
-## Bekannte Einschränkungen
+## Known Limitations
 
-- **API v1 wird abgeschaltet** (31.12.2026, siehe oben) – für Neueinrichtungen
-  immer API v2 verwenden.
-- **Klarhimmel-Leistung, Temperatur und Wettercode** liefert pvnode bei API v2
-  nur für die gesamte Anlage, nicht pro Dachfläche/String – diese Werte
-  erscheinen deshalb ausschließlich am Übersichtsgerät (siehe „Entitäten“).
-- **Kein Discovery**: pvnode ist ein reiner Cloud-Dienst ohne lokale
-  Netzwerk-Erkennung (kein mDNS/SSDP/DHCP) – die Integration muss manuell
-  eingerichtet werden.
-- **Abonnement-Limits werden nicht serverseitig durchgesetzt**: Die
-  Abfrageintervalle richten sich nach der gewählten Stufe (Free/Light/Plus),
-  ein falsch gewähltes (zu niedriges) Abonnement kann trotzdem zu
-  Rate-Limit-Fehlern von pvnode führen.
+- **API v1 is being shut down** (2026-12-31, see above) - always use API v2
+  for new setups.
+- **Clear-sky power, temperature and weather code**: pvnode only reports
+  these for the whole plant under API v2, not per roof surface/string -
+  these values therefore only appear on the overview device (see
+  "Entities").
+- **No discovery**: pvnode is a pure cloud service with no local network
+  discovery (no mDNS/SSDP/DHCP) - the integration must be set up manually.
+- **Subscription limits aren't enforced server-side**: polling intervals are
+  based on the selected tier (Free/Light/Plus); choosing a tier that's too
+  low for your actual pvnode subscription can still lead to rate-limit
+  errors from pvnode.
 
-## Fehlerbehebung
+## Troubleshooting
 
-- **Nach einem Update erscheinen neue Funktionen (z. B. Energy-Dashboard,
-  neue Sensoren) nicht**: Home Assistant nach jedem Update dieser Integration
-  **vollständig neu starten** (nicht nur „Integration neu laden“) – manche
-  Erweiterungen (z. B. `energy.py`) werden nur beim vollständigen Start
-  erkannt.
-- **pvnode erscheint nicht als Prognosequelle im Energie-Dashboard**: sicherstellen,
-  dass ein vollständiger Neustart nach der Installation erfolgt ist. Zum
-  Prüfen: Entwicklerwerkzeuge der Browser-Konsole → 
-  `hass.callWS({type:"energy/info"})` sollte `"pvnode"` unter
-  `solar_forecast_domains` auflisten.
-- **Fehlermeldung „pvnode rejected the API key“**: API-Schlüssel im
-  pvnode-Portal prüfen; die Integration fordert danach automatisch eine
-  erneute Anmeldung an (Reauth-Benachrichtigung unter Einstellungen → Geräte
-  & Dienste).
-- **Diagnosedaten**: über die drei Punkte am Integrationseintrag →
-  „Diagnose herunterladen“ lässt sich der interne Zustand (Anzahl geladener
-  Zeitreihenwerte je Dachfläche, letzte Aktualisierung, Konfiguration ohne
-  API-Schlüssel/Site-ID) für Fehlerberichte exportieren.
+- **New features (e.g. Energy dashboard, new sensors) don't show up after an
+  update**: **fully restart** Home Assistant after every update of this
+  integration (not just "reload integration") - some extensions (e.g.
+  `energy.py`) are only picked up on a full start.
+- **pvnode doesn't show up as a forecast source in the Energy dashboard**:
+  make sure a full restart happened after installation. To check: browser
+  developer tools console → `hass.callWS({type:"energy/info"})` should list
+  `"pvnode"` under `solar_forecast_domains`.
+- **Error message "pvnode rejected the API key"**: check the API key in the
+  pvnode portal; the integration will then automatically request
+  re-authentication (a reauth notification under Settings → Devices &
+  Services).
+- **Diagnostics**: use the three-dot menu on the integration entry →
+  "Download diagnostics" to export the internal state (number of loaded
+  time-series values per roof surface, last update, configuration without
+  the API key/Site ID) for bug reports.
 
-## Deinstallation
+## Uninstallation
 
-1. **Einstellungen → Geräte & Dienste → pvnode** → „⋮“-Menü → **Löschen**.
-2. Falls manuell installiert: Ordner `custom_components/pvnode` aus der
-   Home-Assistant-Konfiguration entfernen.
-3. Falls über HACS installiert: pvnode zusätzlich in HACS deinstallieren.
-4. Home Assistant neu starten.
+1. **Settings → Devices & Services → pvnode** → "⋮" menu → **Delete**.
+2. If installed manually: remove the `custom_components/pvnode` folder from
+   your Home Assistant configuration.
+3. If installed via HACS: also uninstall pvnode from HACS.
+4. Restart Home Assistant.
 
-Alle von der Integration angelegten Geräte, Entitäten und Reparaturhinweise
-werden beim Löschen automatisch entfernt.
+All devices, entities and repair issues created by the integration are
+automatically removed when it's deleted.
 
-## Lizenz
+## License
 
-MIT, siehe [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
+
+[hacs]: https://github.com/hacs/integration
+[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=ccc
+[hainstall]: https://my.home-assistant.io/redirect/config_flow_start/?domain=pvnode
+[hainstallbadge]: https://img.shields.io/badge/dynamic/json?style=for-the-badge&logo=home-assistant&logoColor=ccc&label=usage&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.pvnode.total
