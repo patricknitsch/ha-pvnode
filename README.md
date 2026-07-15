@@ -6,6 +6,12 @@ Sie orientiert sich an der pvnode-Anbindung des ioBroker-Adapters
 [ioBroker.pvforecast](https://github.com/iobroker-community-adapters/ioBroker.pvforecast)
 und unterstützt sowohl **API v1** als auch **API v2**.
 
+## Voraussetzungen
+
+- Ein [pvnode](https://pvnode.com)-Konto mit API-Schlüssel.
+- Für API v2 (empfohlen) zusätzlich eine unter <https://pvnode.com/sites/new>
+  angelegte Site mit mindestens einer konfigurierten Anlage.
+
 ## Installation
 
 ### Über HACS (empfohlen)
@@ -57,6 +63,9 @@ Integration dann keine Daten mehr über v1. Nutze für Neueinrichtungen API v2.
 - **Anzahl Prognosetage** – wird passend zur gewählten Stufe begrenzt.
 - Über **Einstellungen → Integration konfigurieren** lassen sich Abonnement,
   Prognosetage und (bei API v1) Dachflächen jederzeit nachträglich anpassen.
+- Über das „⋮“-Menü des Integrationseintrags → **Neu konfigurieren** lässt sich
+  der API-Schlüssel (und bei API v2 die Site-ID) austauschen, ohne den Eintrag
+  zu löschen und neu anzulegen.
 
 ## Entitäten
 
@@ -96,6 +105,65 @@ und Solcast pro Konfigurationseintrag jeweils eine kombinierte Prognose
 liefern). Mehrere Prognosequellen lassen sich im Energie-Dashboard ohnehin
 zu einer Solaranlage addieren, falls z. B. ein Teil der Anlage über eine
 andere Quelle prognostiziert werden soll.
+
+## Anwendungsfälle
+
+- **Energie-Dashboard**: Solarprognose vs. tatsächliche Erzeugung vergleichen
+  (siehe oben).
+- **Automatisierungen**: z. B. Verbraucher (Wallbox, Warmwasser) starten, wenn
+  `sensor.pvnode_total_power_forecast` einen Schwellenwert übersteigt, oder auf
+  Basis der Energieprognose für morgen den Ladezustand eines
+  Batteriespeichers planen.
+- **Verschattungs-/Ausrichtungsvergleich**: bei mehreren Dachflächen die
+  einzelnen Leistungsprognosen gegenüberstellen, um z. B. eine verschattete
+  Fläche zu erkennen.
+
+## Bekannte Einschränkungen
+
+- **API v1 wird abgeschaltet** (31.12.2026, siehe oben) – für Neueinrichtungen
+  immer API v2 verwenden.
+- **Klarhimmel-Leistung, Temperatur und Wettercode** liefert pvnode bei API v2
+  nur für die gesamte Anlage, nicht pro Dachfläche/String – diese Werte
+  erscheinen deshalb ausschließlich am Übersichtsgerät (siehe „Entitäten“).
+- **Kein Discovery**: pvnode ist ein reiner Cloud-Dienst ohne lokale
+  Netzwerk-Erkennung (kein mDNS/SSDP/DHCP) – die Integration muss manuell
+  eingerichtet werden.
+- **Abonnement-Limits werden nicht serverseitig durchgesetzt**: Die
+  Abfrageintervalle richten sich nach der gewählten Stufe (Free/Light/Plus),
+  ein falsch gewähltes (zu niedriges) Abonnement kann trotzdem zu
+  Rate-Limit-Fehlern von pvnode führen.
+
+## Fehlerbehebung
+
+- **Nach einem Update erscheinen neue Funktionen (z. B. Energy-Dashboard,
+  neue Sensoren) nicht**: Home Assistant nach jedem Update dieser Integration
+  **vollständig neu starten** (nicht nur „Integration neu laden“) – manche
+  Erweiterungen (z. B. `energy.py`) werden nur beim vollständigen Start
+  erkannt.
+- **pvnode erscheint nicht als Prognosequelle im Energie-Dashboard**: sicherstellen,
+  dass ein vollständiger Neustart nach der Installation erfolgt ist. Zum
+  Prüfen: Entwicklerwerkzeuge der Browser-Konsole → 
+  `hass.callWS({type:"energy/info"})` sollte `"pvnode"` unter
+  `solar_forecast_domains` auflisten.
+- **Fehlermeldung „pvnode rejected the API key“**: API-Schlüssel im
+  pvnode-Portal prüfen; die Integration fordert danach automatisch eine
+  erneute Anmeldung an (Reauth-Benachrichtigung unter Einstellungen → Geräte
+  & Dienste).
+- **Diagnosedaten**: über die drei Punkte am Integrationseintrag →
+  „Diagnose herunterladen“ lässt sich der interne Zustand (Anzahl geladener
+  Zeitreihenwerte je Dachfläche, letzte Aktualisierung, Konfiguration ohne
+  API-Schlüssel/Site-ID) für Fehlerberichte exportieren.
+
+## Deinstallation
+
+1. **Einstellungen → Geräte & Dienste → pvnode** → „⋮“-Menü → **Löschen**.
+2. Falls manuell installiert: Ordner `custom_components/pvnode` aus der
+   Home-Assistant-Konfiguration entfernen.
+3. Falls über HACS installiert: pvnode zusätzlich in HACS deinstallieren.
+4. Home Assistant neu starten.
+
+Alle von der Integration angelegten Geräte, Entitäten und Reparaturhinweise
+werden beim Löschen automatisch entfernt.
 
 ## Lizenz
 

@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -49,6 +50,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+type PvnodeConfigEntry = ConfigEntry["PvnodeDataUpdateCoordinator"]
+
 
 @dataclass
 class PvnodeRoofData:
@@ -75,7 +78,7 @@ class PvnodeData:
 class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
     """Fetch pvnode forecasts on a tier-appropriate schedule."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: PvnodeConfigEntry) -> None:
         """Initialize the coordinator for a config entry."""
         self.entry = entry
         self.api = PvnodeApiClient(
@@ -133,9 +136,15 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
             else:
                 data = await self._async_update_v1()
         except PvnodeAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="auth_failed"
+            ) from err
         except PvnodeError as err:
-            raise UpdateFailed(str(err)) from err
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
         new_keys = set(data.roofs) - self.known_roof_keys
         if new_keys:
@@ -143,19 +152,46 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
             for listener in list(self._new_roof_listeners):
                 listener(new_keys)
 
+        await self._async_remove_stale_roofs(set(data.roofs))
+
         return data
+
+    async def _async_remove_stale_roofs(self, valid_roof_keys: set[str]) -> None:
+        """Remove devices (and their entities) for roof surfaces no longer present.
+
+        Covers both a roof surface removed via the options flow (API v1) and a
+        string that disappeared from the pvnode site (API v2), keeping the
+        device registry in sync with what pvnode actually reports.
+        """
+        device_registry = dr.async_get(self.hass)
+        valid_identifiers = {f"{self.entry.entry_id}_{key}" for key in valid_roof_keys}
+
+        for device in dr.async_entries_for_config_entry(
+            device_registry, self.entry.entry_id
+        ):
+            device_ids = {
+                identifier[1]
+                for identifier in device.identifiers
+                if identifier[0] == DOMAIN
+            }
+            # Skip the overview/hub device itself (identifier == entry_id).
+            if self.entry.entry_id in device_ids:
+                continue
+            if not device_ids & valid_identifiers:
+                device_registry.async_update_device(
+                    device.id, remove_config_entry_id=self.entry.entry_id
+                )
 
     async def _async_update_v1(self) -> PvnodeData:
         """Fetch a v1 forecast for every manually configured roof surface."""
         if dt_util.now().date() >= V1_SHUTDOWN_HARD_DATE:
-            raise UpdateFailed(
-                "pvnode API v1 has been shut down. Please switch to API v2 "
-                "(pvnode Site-ID) in the integration options."
-            )
+            raise UpdateFailed(translation_domain=DOMAIN, translation_key="v1_shutdown")
 
         roofs_cfg = self.entry.options.get(CONF_ROOFS, [])
         if not roofs_cfg:
-            raise UpdateFailed("No roof surfaces configured for pvnode API v1")
+            raise UpdateFailed(
+                translation_domain=DOMAIN, translation_key="no_roofs_configured"
+            )
 
         latitude = self.hass.config.latitude
         longitude = self.hass.config.longitude

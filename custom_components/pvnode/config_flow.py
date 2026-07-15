@@ -199,6 +199,9 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except PvnodeError:
                 errors["base"] = "unknown"
+            except Exception:  # noqa: BLE001 - never crash the setup wizard
+                _LOGGER.exception("Unexpected error validating pvnode site %s", site_id)
+                errors["base"] = "unknown"
             else:
                 roof_count = len(discover_string_indexes(raw)) or 1
                 _LOGGER.debug(
@@ -251,6 +254,9 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "cannot_connect"
                 except PvnodeError:
                     errors["base"] = "unknown"
+                except Exception:  # noqa: BLE001 - never crash the setup wizard
+                    _LOGGER.exception("Unexpected error validating pvnode roof surface")
+                    errors["base"] = "unknown"
 
             if not errors:
                 existing_ids = {roof[CONF_ROOF_ID] for roof in self._roofs}
@@ -298,6 +304,38 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="general", data_schema=vol.Schema(_general_schema())
         )
 
+    async def _async_test_connection(
+        self,
+        api_key: str,
+        *,
+        site_id: str | None = None,
+        v1_roof: dict[str, Any] | None = None,
+    ) -> str | None:
+        """Attempt a live pvnode API call; return an error code, or None on success."""
+        client = PvnodeApiClient(async_get_clientsession(self.hass), api_key)
+        try:
+            if site_id is not None:
+                await client.async_get_v2_forecast(site_id=site_id, forecast_days=1)
+            elif v1_roof is not None:
+                await client.async_get_v1_forecast(
+                    latitude=self.hass.config.latitude,
+                    longitude=self.hass.config.longitude,
+                    tilt=v1_roof[CONF_ROOF_TILT],
+                    azimuth=v1_roof[CONF_ROOF_AZIMUTH],
+                    peak_power_kw=v1_roof[CONF_ROOF_PEAK_POWER],
+                    forecast_days=1,
+                )
+        except PvnodeAuthError:
+            return "invalid_auth"
+        except PvnodeConnectionError:
+            return "cannot_connect"
+        except PvnodeError:
+            return "unknown"
+        except Exception:  # noqa: BLE001 - never crash the setup wizard
+            _LOGGER.exception("Unexpected error testing the pvnode connection")
+            return "unknown"
+        return None
+
     async def async_step_reauth(self, entry_data: dict[str, Any]):
         """Handle re-authentication when pvnode rejects the stored API key."""
         self._reauth_entry = self.hass.config_entries.async_get_entry(
@@ -312,34 +350,18 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         assert entry is not None
 
         if user_input is not None:
-            client = PvnodeApiClient(
-                async_get_clientsession(self.hass), user_input[CONF_API_KEY]
+            api_key = user_input[CONF_API_KEY]
+            is_v2 = entry.data[CONF_API_VERSION] == API_VERSION_V2
+            roofs = entry.options.get(CONF_ROOFS, [])
+            error = await self._async_test_connection(
+                api_key,
+                site_id=entry.data[CONF_SITE_ID] if is_v2 else None,
+                v1_roof=roofs[0] if not is_v2 and roofs else None,
             )
-            try:
-                if entry.data[CONF_API_VERSION] == API_VERSION_V2:
-                    await client.async_get_v2_forecast(
-                        site_id=entry.data[CONF_SITE_ID], forecast_days=1
-                    )
-                else:
-                    roofs = entry.options.get(CONF_ROOFS, [])
-                    if roofs:
-                        roof = roofs[0]
-                        await client.async_get_v1_forecast(
-                            latitude=self.hass.config.latitude,
-                            longitude=self.hass.config.longitude,
-                            tilt=roof[CONF_ROOF_TILT],
-                            azimuth=roof[CONF_ROOF_AZIMUTH],
-                            peak_power_kw=roof[CONF_ROOF_PEAK_POWER],
-                            forecast_days=1,
-                        )
-            except PvnodeAuthError:
-                errors["base"] = "invalid_auth"
-            except PvnodeConnectionError:
-                errors["base"] = "cannot_connect"
-            except PvnodeError:
-                errors["base"] = "unknown"
+            if error:
+                errors["base"] = error
             else:
-                new_data = {**entry.data, CONF_API_KEY: user_input[CONF_API_KEY]}
+                new_data = {**entry.data, CONF_API_KEY: api_key}
                 self.hass.config_entries.async_update_entry(entry, data=new_data)
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
@@ -348,6 +370,62 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
             errors=errors,
+        )
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None):
+        """Update the API key (and Site-ID for API v2) without recreating the entry."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        is_v2 = entry.data[CONF_API_VERSION] == API_VERSION_V2
+
+        if user_input is not None:
+            api_key = user_input[CONF_API_KEY]
+            site_id = user_input[CONF_SITE_ID].strip() if is_v2 else None
+
+            # Reconfigure is allowed to point this entry at a *different*
+            # pvnode site - that's the whole point of editing the Site-ID
+            # here. Only guard against colliding with some *other* entry
+            # that already tracks that site (self._abort_if_unique_id_mismatch
+            # is for the opposite case - accidentally keeping the same
+            # identity - so it doesn't apply to an intentional site change).
+            new_unique_id = f"{API_VERSION_V2}_{site_id}" if is_v2 else entry.unique_id
+            if is_v2 and any(
+                other.entry_id != entry.entry_id and other.unique_id == new_unique_id
+                for other in self.hass.config_entries.async_entries(DOMAIN)
+            ):
+                errors["base"] = "already_configured"
+
+            if not errors:
+                roofs = entry.options.get(CONF_ROOFS, [])
+                error = await self._async_test_connection(
+                    api_key,
+                    site_id=site_id,
+                    v1_roof=roofs[0] if not is_v2 and roofs else None,
+                )
+                if error:
+                    errors["base"] = error
+
+            if not errors:
+                new_data = {**entry.data, CONF_API_KEY: api_key}
+                if is_v2:
+                    new_data[CONF_SITE_ID] = site_id
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data=new_data,
+                    unique_id=new_unique_id,
+                    reason="reconfigure_successful",
+                )
+
+        schema_dict: dict[Any, Any] = {
+            vol.Required(CONF_API_KEY, default=entry.data.get(CONF_API_KEY, "")): str,
+        }
+        if is_v2:
+            schema_dict[
+                vol.Required(CONF_SITE_ID, default=entry.data.get(CONF_SITE_ID, ""))
+            ] = str
+
+        return self.async_show_form(
+            step_id="reconfigure", data_schema=vol.Schema(schema_dict), errors=errors
         )
 
     @staticmethod

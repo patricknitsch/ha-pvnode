@@ -45,16 +45,26 @@
         "data": {
           "api_key": "API key"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure pvnode",
+        "description": "Update the API key (and Site-ID for API v2) without recreating this integration entry.",
+        "data": {
+          "api_key": "API key",
+          "site_id": "Site ID"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid API key",
       "cannot_connect": "Cannot connect to the pvnode API",
-      "unknown": "Unexpected error"
+      "unknown": "Unexpected error",
+      "already_configured": "This Site-ID is already used by another pvnode entry"
     },
     "abort": {
       "already_configured": "This pvnode account/site is already configured",
-      "reauth_successful": "Re-authentication was successful"
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Reconfiguration was successful"
     }
   },
   "options": {
@@ -109,6 +119,26 @@
       "total_energy_tomorrow": { "name": "Total energy forecast tomorrow" },
       "total_energy_offset": { "name": "Total energy forecast in {day} days" },
       "total_clearsky_power": { "name": "Total clear-sky power" }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "pvnode rejected the stored API key. Please re-authenticate."
+    },
+    "update_failed": {
+      "message": "Error communicating with pvnode: {error}"
+    },
+    "v1_shutdown": {
+      "message": "pvnode API v1 has been shut down. Please switch to API v2 (pvnode Site-ID) in the integration options."
+    },
+    "no_roofs_configured": {
+      "message": "No roof surfaces configured for pvnode API v1. Add at least one in the integration options."
+    }
+  },
+  "issues": {
+    "v1_deprecated": {
+      "title": "pvnode API v1 is deprecated",
+      "description": "This pvnode integration entry still uses the deprecated API v1, which pvnode will shut down on 2026-12-31. After that date, this integration will stop receiving data via API v1.\n\nTo continue receiving forecasts, create a Site at https://pvnode.com/sites/new, then remove this integration entry and add pvnode again, this time selecting API v2 with your new Site-ID."
     }
   }
 }

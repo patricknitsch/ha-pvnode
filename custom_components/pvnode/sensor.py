@@ -18,29 +18,27 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, UnitOfPower, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import (
-    API_VERSION_V1,
-    API_VERSION_V2,
-    CONF_API_VERSION,
-    DOMAIN,
-    MANUFACTURER,
-)
-from .coordinator import PvnodeDataUpdateCoordinator, PvnodeRoofData
+from .const import API_VERSION_V1, CONF_API_VERSION
+from .coordinator import PvnodeConfigEntry, PvnodeDataUpdateCoordinator
+from .entity import PvnodeRoofEntity, PvnodeTotalEntity
+
+# Entities only ever read already-fetched coordinator data - there is no
+# per-entity I/O, so updates may run in parallel without limit.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: PvnodeConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up pvnode sensors for a config entry."""
-    coordinator: PvnodeDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     added_roof_keys: set[str] = set()
 
     @callback
@@ -54,10 +52,12 @@ async def async_setup_entry(
         if new_entities:
             async_add_entities(new_entities)
 
+    # Create the overview/hub device first: roof devices reference it via
+    # `via_device`, which must already exist in the device registry.
+    async_add_entities(_build_site_entities(coordinator, entry))
+
     _add_roofs(set(coordinator.data.roofs))
     entry.async_on_unload(coordinator.add_new_roof_listener(_add_roofs))
-
-    async_add_entities(_build_site_entities(coordinator, entry))
 
 
 def _apply_day_offset_translation(
@@ -74,7 +74,7 @@ def _apply_day_offset_translation(
 
 
 def _build_roof_entities(
-    coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry, roof_key: str
+    coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry, roof_key: str
 ) -> list[SensorEntity]:
     """Build the full set of sensors for a single roof surface."""
     entities: list[SensorEntity] = [PvnodePowerSensor(coordinator, entry, roof_key)]
@@ -92,7 +92,7 @@ def _build_roof_entities(
 
 
 def _build_site_entities(
-    coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+    coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry
 ) -> list[SensorEntity]:
     """Build the sensors for the pvnode overview ("total") device."""
     entities: list[SensorEntity] = [PvnodeTotalPowerSensor(coordinator, entry)]
@@ -104,49 +104,6 @@ def _build_site_entities(
     entities.append(PvnodeSiteTemperatureSensor(coordinator, entry))
     entities.append(PvnodeSiteWeatherCodeSensor(coordinator, entry))
     return entities
-
-
-class PvnodeRoofEntity(CoordinatorEntity[PvnodeDataUpdateCoordinator], SensorEntity):
-    """Base class for entities tied to a single pvnode roof surface."""
-
-    _attr_has_entity_name = True
-
-    def __init__(
-        self,
-        coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
-        roof_key: str,
-    ) -> None:
-        """Initialize the entity and its device info."""
-        super().__init__(coordinator)
-        self._entry = entry
-        self._roof_key = roof_key
-
-        roof = self._roof
-        model = (
-            "pvnode API v2 (Dachfläche/String)"
-            if entry.data.get(CONF_API_VERSION) == API_VERSION_V2
-            else "pvnode API v1 (Dachfläche)"
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry.entry_id}_{roof_key}")},
-            name=roof.name if roof else roof_key,
-            manufacturer=MANUFACTURER,
-            model=model,
-            via_device=(DOMAIN, entry.entry_id),
-        )
-
-    @property
-    def _roof(self) -> PvnodeRoofData | None:
-        """Return the current data for this roof surface, if available."""
-        if not self.coordinator.data:
-            return None
-        return self.coordinator.data.roofs.get(self._roof_key)
-
-    @property
-    def available(self) -> bool:
-        """Return whether this roof surface is currently reporting data."""
-        return super().available and self._roof is not None
 
 
 class PvnodePowerSensor(PvnodeRoofEntity):
@@ -166,7 +123,7 @@ class PvnodePowerSensor(PvnodeRoofEntity):
     def __init__(
         self,
         coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
+        entry: PvnodeConfigEntry,
         roof_key: str,
     ) -> None:
         """Initialize the power sensor."""
@@ -202,7 +159,7 @@ class PvnodeEnergySensor(PvnodeRoofEntity):
     def __init__(
         self,
         coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
+        entry: PvnodeConfigEntry,
         roof_key: str,
         day_offset: int,
     ) -> None:
@@ -233,7 +190,7 @@ class PvnodeClearskyPowerSensor(PvnodeRoofEntity):
     def __init__(
         self,
         coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
+        entry: PvnodeConfigEntry,
         roof_key: str,
     ) -> None:
         """Initialize the clear-sky power sensor."""
@@ -247,27 +204,6 @@ class PvnodeClearskyPowerSensor(PvnodeRoofEntity):
         return roof.forecast.current_clearsky_power if roof else None
 
 
-class PvnodeTotalEntity(CoordinatorEntity[PvnodeDataUpdateCoordinator], SensorEntity):
-    """Base class for entities on the pvnode overview device (site-wide)."""
-
-    _attr_has_entity_name = True
-
-    def __init__(
-        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
-    ) -> None:
-        """Initialize the entity and attach it to the account/site hub device."""
-        super().__init__(coordinator)
-        self._entry = entry
-        api_version = entry.data.get(CONF_API_VERSION, API_VERSION_V2).upper()
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer=MANUFACTURER,
-            model=f"pvnode API {api_version}",
-            configuration_url="https://pvnode.com",
-        )
-
-
 class PvnodeTotalPowerSensor(PvnodeTotalEntity):
     """Total forecast power across all roof surfaces."""
 
@@ -277,7 +213,7 @@ class PvnodeTotalPowerSensor(PvnodeTotalEntity):
     _attr_translation_key = "total_power"
 
     def __init__(
-        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry
     ) -> None:
         """Initialize the total power sensor."""
         super().__init__(coordinator, entry)
@@ -307,7 +243,7 @@ class PvnodeTotalEnergySensor(PvnodeTotalEntity):
     def __init__(
         self,
         coordinator: PvnodeDataUpdateCoordinator,
-        entry: ConfigEntry,
+        entry: PvnodeConfigEntry,
         day_offset: int,
     ) -> None:
         """Initialize the total energy sensor for the given day offset (0=today)."""
@@ -346,7 +282,7 @@ class PvnodeSiteClearskyPowerSensor(PvnodeTotalEntity):
     _attr_translation_key = "total_clearsky_power"
 
     def __init__(
-        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry
     ) -> None:
         """Initialize the site-wide clear-sky power sensor."""
         super().__init__(coordinator, entry)
@@ -369,7 +305,7 @@ class PvnodeSiteTemperatureSensor(PvnodeTotalEntity):
     _attr_translation_key = "temperature"
 
     def __init__(
-        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry
     ) -> None:
         """Initialize the site-wide temperature sensor."""
         super().__init__(coordinator, entry)
@@ -389,7 +325,7 @@ class PvnodeSiteWeatherCodeSensor(PvnodeTotalEntity):
     _attr_translation_key = "weather_code"
 
     def __init__(
-        self, coordinator: PvnodeDataUpdateCoordinator, entry: ConfigEntry
+        self, coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry
     ) -> None:
         """Initialize the site-wide weather code sensor."""
         super().__init__(coordinator, entry)

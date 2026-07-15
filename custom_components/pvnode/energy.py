@@ -11,17 +11,17 @@ from __future__ import annotations
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .coordinator import PvnodeDataUpdateCoordinator
 
 
 async def async_get_solar_forecast(
     hass: HomeAssistant, config_entry_id: str
 ) -> dict[str, dict[str, float | int]] | None:
     """Get the combined solar forecast (all roof surfaces) for a config entry."""
-    coordinator: PvnodeDataUpdateCoordinator | None = hass.data.get(DOMAIN, {}).get(
-        config_entry_id
-    )
-    if coordinator is None or not coordinator.data:
+    entry = hass.config_entries.async_get_entry(config_entry_id)
+    if entry is None or entry.domain != DOMAIN or entry.runtime_data is None:
+        return None
+    coordinator = entry.runtime_data
+    if not coordinator.data:
         return None
 
     wh_hours: dict[str, float] = {}

@@ -45,16 +45,26 @@
         "data": {
           "api_key": "API-Schlüssel"
         }
+      },
+      "reconfigure": {
+        "title": "pvnode neu konfigurieren",
+        "description": "Aktualisiere den API-Schlüssel (und bei API v2 die Site-ID), ohne diesen Integrationseintrag neu anzulegen.",
+        "data": {
+          "api_key": "API-Schlüssel",
+          "site_id": "Site-ID"
+        }
       }
     },
     "error": {
       "invalid_auth": "Ungültiger API-Schlüssel",
       "cannot_connect": "Verbindung zur pvnode-API nicht möglich",
-      "unknown": "Unerwarteter Fehler"
+      "unknown": "Unerwarteter Fehler",
+      "already_configured": "Diese Site-ID wird bereits von einem anderen pvnode-Eintrag verwendet"
     },
     "abort": {
       "already_configured": "Dieses pvnode-Konto/diese Site ist bereits eingerichtet",
-      "reauth_successful": "Erneute Authentifizierung war erfolgreich"
+      "reauth_successful": "Erneute Authentifizierung war erfolgreich",
+      "reconfigure_successful": "Neukonfiguration war erfolgreich"
     }
   },
   "options": {
@@ -109,6 +119,26 @@
       "total_energy_tomorrow": { "name": "Gesamt-Energieprognose morgen" },
       "total_energy_offset": { "name": "Gesamt-Energieprognose in {day} Tagen" },
       "total_clearsky_power": { "name": "Gesamt-Klarhimmel-Leistung" }
+    }
+  },
+  "exceptions": {
+    "auth_failed": {
+      "message": "pvnode hat den gespeicherten API-Schlüssel abgelehnt. Bitte erneut authentifizieren."
+    },
+    "update_failed": {
+      "message": "Fehler bei der Kommunikation mit pvnode: {error}"
+    },
+    "v1_shutdown": {
+      "message": "Die pvnode API v1 wurde abgeschaltet. Bitte in den Integrationseinstellungen auf API v2 (pvnode Site-ID) wechseln."
+    },
+    "no_roofs_configured": {
+      "message": "Für die pvnode API v1 sind keine Dachflächen konfiguriert. Füge mindestens eine in den Integrationseinstellungen hinzu."
+    }
+  },
+  "issues": {
+    "v1_deprecated": {
+      "title": "pvnode API v1 ist veraltet",
+      "description": "Dieser pvnode-Integrationseintrag nutzt noch die veraltete API v1, die pvnode zum 31.12.2026 abschaltet. Danach liefert diese Integration über API v1 keine Daten mehr.\n\nUm weiterhin Prognosen zu erhalten, erstelle eine Site unter https://pvnode.com/sites/new, entferne diesen Integrationseintrag und richte pvnode erneut ein - diesmal mit API v2 und deiner neuen Site-ID."
     }
   }
 }
