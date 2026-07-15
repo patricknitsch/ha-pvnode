@@ -179,3 +179,36 @@ async def test_stale_roof_device_removed_when_string_disappears(
     assert len(devices_after) == 2  # 1 roof + overview device
     remaining_names = {device.name for device in devices_after}
     assert "Dachfläche 2" not in remaining_names
+
+
+async def test_stale_energy_entities_removed_when_forecast_days_reduced(
+    hass: HomeAssistant,
+) -> None:
+    """Day-offset energy sensors beyond the new forecast_days are removed."""
+    entry = _v2_entry(forecast_days=7, tier="plus")
+    entry.add_to_hass(hass)
+
+    with patch(V2_FORECAST, return_value=FAKE_V2_ONE_STRING):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    def _energy_day_offsets() -> set[int]:
+        entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+        offsets = set()
+        for entity in entities:
+            if "_energy_day" in entity.unique_id:
+                offsets.add(int(entity.unique_id.rsplit("day", 1)[1]))
+        return offsets
+
+    assert _energy_day_offsets() == set(range(7))
+
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_FORECAST_DAYS: 5}
+    )
+    with patch(V2_FORECAST, return_value=FAKE_V2_ONE_STRING):
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert _energy_day_offsets() == set(range(5))

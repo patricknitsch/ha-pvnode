@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,6 +13,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -51,6 +53,10 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 type PvnodeConfigEntry = ConfigEntry["PvnodeDataUpdateCoordinator"]
+
+# Matches the unique_id suffix of a day-offset energy sensor, e.g.
+# "..._energy_day5" (roof) or "..._total_energy_day5" (overview device).
+_ENERGY_DAY_OFFSET_RE = re.compile(r"_energy_day(\d+)$")
 
 
 @dataclass
@@ -153,6 +159,7 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
                 listener(new_keys)
 
         await self._async_remove_stale_roofs(set(data.roofs))
+        self._remove_stale_day_offset_entities()
 
         return data
 
@@ -181,6 +188,24 @@ class PvnodeDataUpdateCoordinator(DataUpdateCoordinator[PvnodeData]):
                 device_registry.async_update_device(
                     device.id, remove_config_entry_id=self.entry.entry_id
                 )
+
+    def _remove_stale_day_offset_entities(self) -> None:
+        """Remove per-day energy sensors beyond the currently configured horizon.
+
+        Roof surfaces and the overview device get one energy sensor per
+        forecast day (0..forecast_days-1). If forecast_days is reduced (e.g.
+        from 7 to 5), the sensors for the dropped days would otherwise remain
+        in the entity registry forever, permanently "unavailable".
+        """
+        entity_registry = er.async_get(self.hass)
+        max_offset = self.forecast_days
+
+        for entity in list(
+            er.async_entries_for_config_entry(entity_registry, self.entry.entry_id)
+        ):
+            match = _ENERGY_DAY_OFFSET_RE.search(entity.unique_id)
+            if match and int(match.group(1)) >= max_offset:
+                entity_registry.async_remove(entity.entity_id)
 
     async def _async_update_v1(self) -> PvnodeData:
         """Fetch a v1 forecast for every manually configured roof surface."""
