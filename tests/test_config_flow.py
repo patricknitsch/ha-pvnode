@@ -8,6 +8,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pvnode.api import PvnodeAuthError, PvnodeConnectionError
@@ -283,35 +284,46 @@ async def test_options_flow_general_and_roofs(hass: HomeAssistant) -> None:
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    assert result["type"] is FlowResultType.MENU
-    assert set(result["menu_options"]) == {"general", "add_roof", "remove_roof"}
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        assert result["type"] is FlowResultType.MENU
+        assert set(result["menu_options"]) == {"general", "add_roof", "remove_roof"}
 
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "add_roof"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {
-            CONF_ROOF_NAME: "Ost",
-            CONF_ROOF_AZIMUTH: -90,
-            CONF_ROOF_TILT: 40,
-            CONF_ROOF_PEAK_POWER: 3,
-        },
-    )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert len(entry.options[CONF_ROOFS]) == 2
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"next_step_id": "add_roof"}
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_ROOF_NAME: "Ost",
+                CONF_ROOF_AZIMUTH: -90,
+                CONF_ROOF_TILT: 40,
+                CONF_ROOF_PEAK_POWER: 3,
+            },
+        )
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        assert len(entry.options[CONF_ROOFS]) == 2
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "remove_roof"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_ROOFS: ["roof1"]}
-    )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert len(entry.options[CONF_ROOFS]) == 1
-    assert entry.options[CONF_ROOFS][0][CONF_ROOF_NAME] == "Ost"
+        # OptionsFlowWithReload schedules a reload without needing an explicit
+        # config-entry update listener; confirm the new roof's entities
+        # actually show up once that reload completes.
+        await hass.async_block_till_done()
+        entity_registry = er.async_get(hass)
+        entity_ids = {
+            e.entity_id
+            for e in er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+        }
+        assert "sensor.ost_power_forecast" in entity_ids
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"next_step_id": "remove_roof"}
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_ROOFS: ["roof1"]}
+        )
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        assert len(entry.options[CONF_ROOFS]) == 1
+        assert entry.options[CONF_ROOFS][0][CONF_ROOF_NAME] == "Ost"
 
 
 async def test_options_flow_remove_roof_aborts_when_empty(hass: HomeAssistant) -> None:
