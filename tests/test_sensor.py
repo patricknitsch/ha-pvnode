@@ -158,12 +158,13 @@ async def test_v1_roof_has_clearsky_sensor(hass: HomeAssistant) -> None:
     assert state.state == "600"
 
 
-async def test_v1_roof_forecast_attribute_has_all_three_values(
+async def test_v1_roof_power_forecast_attribute_has_only_watts(
     hass: HomeAssistant,
 ) -> None:
-    """A v1 roof's forecast attribute merges watts, clear-sky and temperature."""
+    """A roof's power forecast attribute only carries watts (own entity per metric)."""
     entry = MockConfigEntry(
         domain=DOMAIN,
+        title="pvnode",
         unique_id="v1_all_values",
         data={"name": "pvnode", CONF_API_VERSION: "v1", CONF_API_KEY: "key123"},
         options={
@@ -186,18 +187,36 @@ async def test_v1_roof_forecast_attribute_has_all_three_values(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.sud_power_forecast")
-    assert state is not None
-    forecast = state.attributes["forecast"]
-    assert len(forecast) == 1
     expected_dt = dt_util.as_local(datetime(2026, 7, 13, 12, 0, tzinfo=dt_util.UTC))
-    assert forecast[0] == {
-        "datetime": expected_dt.isoformat(),
-        "watts": 500,
-        "watts_clearsky": 600,
-        "temperature": 20.0,
-        "weather_code": 0,
-    }
+
+    power_forecast = hass.states.get("sensor.sud_power_forecast").attributes["forecast"]
+    assert power_forecast == [{"datetime": expected_dt.isoformat(), "watts": 500}]
+
+    clearsky_forecast = hass.states.get("sensor.sud_clear_sky_power").attributes[
+        "forecast"
+    ]
+    assert clearsky_forecast == [
+        {"datetime": expected_dt.isoformat(), "watts_clearsky": 600}
+    ]
+
+    total_clearsky_forecast = hass.states.get(
+        "sensor.pvnode_total_clear_sky_power"
+    ).attributes["forecast"]
+    assert total_clearsky_forecast == [
+        {"datetime": expected_dt.isoformat(), "watts_clearsky": 600}
+    ]
+    temperature_forecast = hass.states.get(
+        "sensor.pvnode_temperature_forecast"
+    ).attributes["forecast"]
+    assert temperature_forecast == [
+        {"datetime": expected_dt.isoformat(), "temperature": 20.0}
+    ]
+    weather_code_forecast = hass.states.get("sensor.pvnode_weather_code").attributes[
+        "forecast"
+    ]
+    assert weather_code_forecast == [
+        {"datetime": expected_dt.isoformat(), "weather_code": 0}
+    ]
 
 
 async def test_v2_string_forecast_attribute_has_only_watts(
@@ -219,7 +238,7 @@ async def test_v2_string_forecast_attribute_has_only_watts(
 
 
 async def test_total_power_forecast_attribute_sums_roofs(hass: HomeAssistant) -> None:
-    """The overview device's forecast sums per-roof watts and adds site data."""
+    """The overview device's power forecast sums watts across all roof surfaces."""
     entry = _v2_entry(forecast_days=2)
     entry.add_to_hass(hass)
 
@@ -227,17 +246,31 @@ async def test_total_power_forecast_attribute_sums_roofs(hass: HomeAssistant) ->
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.pvnode_total_power_forecast")
-    forecast = state.attributes["forecast"]
-    assert len(forecast) == 1
     expected_dt = datetime(2026, 7, 13, 12, 0, tzinfo=dt_util.DEFAULT_TIME_ZONE)
-    assert forecast[0] == {
-        "datetime": expected_dt.isoformat(),
-        "watts": 1500,
-        "watts_clearsky": 1800,
-        "temperature": 21.0,
-        "weather_code": 1,
-    }
+
+    power_forecast = hass.states.get("sensor.pvnode_total_power_forecast").attributes[
+        "forecast"
+    ]
+    assert power_forecast == [{"datetime": expected_dt.isoformat(), "watts": 1500}]
+
+    clearsky_forecast = hass.states.get(
+        "sensor.pvnode_total_clear_sky_power"
+    ).attributes["forecast"]
+    assert clearsky_forecast == [
+        {"datetime": expected_dt.isoformat(), "watts_clearsky": 1800}
+    ]
+    temperature_forecast = hass.states.get(
+        "sensor.pvnode_temperature_forecast"
+    ).attributes["forecast"]
+    assert temperature_forecast == [
+        {"datetime": expected_dt.isoformat(), "temperature": 21.0}
+    ]
+    weather_code_forecast = hass.states.get("sensor.pvnode_weather_code").attributes[
+        "forecast"
+    ]
+    assert weather_code_forecast == [
+        {"datetime": expected_dt.isoformat(), "weather_code": 1}
+    ]
 
 
 async def test_stale_roof_device_removed_when_string_disappears(

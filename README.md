@@ -87,18 +87,23 @@ Zusätzlich legt die Integration immer ein **„pvnode“-Übersichtsgerät** an
   API v2 der von pvnode gelieferte Wert für die gesamte Anlage)
 - Temperaturprognose und Wettercode
 
-Das `forecast`-Attribut der Leistungssensoren enthält für jeden
-15-Minuten-Zeitschritt (nur Tageslichtstunden, über alle konfigurierten
-Prognosetage) ein Objekt mit `datetime` und `watts`, ergänzt um
-`watts_clearsky`, `temperature` und `weather_code`, sofern für diese
-Dachfläche verfügbar (bei API v1 und am Übersichtsgerät immer, bei API-v2-
-Dachflächen/Strings nur `watts`, da pvnode Klarhimmel/Temperatur/Wettercode
-dort nicht pro String liefert). Dieses Attribut wird bewusst **nicht** vom
-Recorder in der History-Datenbank gespeichert (`_unrecorded_attributes`), da
-es je nach Anzahl Prognosetage mehrere zehn KB groß werden kann. Für
-Auswertungen außerhalb von Home Assistant (z. B. InfluxDB) eignet es sich
-trotzdem, sofern die empfangende Integration selbst auf Zustandsänderungen
-reagiert und das Attribut auswertet.
+Jeder dieser Sensoren trägt sein eigenes `forecast`-Attribut: eine Liste mit
+einem Objekt pro 15-Minuten-Zeitschritt (nur Tageslichtstunden, über alle
+konfigurierten Prognosetage), das ausschließlich `datetime` und die eine zu
+diesem Sensor passende Kennzahl enthält (`watts`, `watts_clearsky`,
+`temperature` bzw. `weather_code`) - bewusst **nicht** in einem einzigen
+großen, kombinierten Attribut, damit jedes einzelne Attribut klein bleibt.
+Bei API-v2-Dachflächen/Strings gibt es nur `watts`, da pvnode Klarhimmel,
+Temperatur und Wettercode dort nicht pro String liefert - am Übersichtsgerät
+stehen alle vier Kennzahlen für **beide** API-Versionen zur Verfügung, da sie
+dort aus der Summe aller Dachflächen bzw. den Standort-Werten stammen.
+
+Alle `forecast`-Attribute werden bewusst **nicht** vom Recorder in der
+History-Datenbank gespeichert (`_unrecorded_attributes`), da sie je nach
+Anzahl Prognosetage mehrere KB groß werden können. Für Auswertungen
+außerhalb von Home Assistant (z. B. InfluxDB) eignen sie sich trotzdem,
+sofern die empfangende Integration selbst auf Zustandsänderungen reagiert
+und das jeweilige Attribut ausliest.
 
 Temperatur, Wettercode und (bei API v2) Klarhimmel-Leistung sind
 Standort-/Anlageeigenschaften, die pvnode nicht pro Dachfläche/String liefert
