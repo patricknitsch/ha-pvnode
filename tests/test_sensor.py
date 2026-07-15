@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import patch
 
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.pvnode.const import (
@@ -154,6 +156,88 @@ async def test_v1_roof_has_clearsky_sensor(hass: HomeAssistant) -> None:
     state = hass.states.get("sensor.sud_clear_sky_power")
     assert state is not None
     assert state.state == "600"
+
+
+async def test_v1_roof_forecast_attribute_has_all_three_values(
+    hass: HomeAssistant,
+) -> None:
+    """A v1 roof's forecast attribute merges watts, clear-sky and temperature."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="v1_all_values",
+        data={"name": "pvnode", CONF_API_VERSION: "v1", CONF_API_KEY: "key123"},
+        options={
+            CONF_TIER: "free",
+            CONF_FORECAST_DAYS: 2,
+            CONF_ROOFS: [
+                {
+                    CONF_ROOF_ID: "roof1",
+                    CONF_ROOF_NAME: "Süd",
+                    CONF_ROOF_AZIMUTH: 0,
+                    CONF_ROOF_TILT: 30,
+                    CONF_ROOF_PEAK_POWER: 5,
+                }
+            ],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(V1_FORECAST, return_value=FAKE_V1_RESPONSE):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.sud_power_forecast")
+    assert state is not None
+    forecast = state.attributes["forecast"]
+    assert len(forecast) == 1
+    expected_dt = dt_util.as_local(datetime(2026, 7, 13, 12, 0, tzinfo=dt_util.UTC))
+    assert forecast[0] == {
+        "datetime": expected_dt.isoformat(),
+        "watts": 500,
+        "watts_clearsky": 600,
+        "temperature": 20.0,
+        "weather_code": 0,
+    }
+
+
+async def test_v2_string_forecast_attribute_has_only_watts(
+    hass: HomeAssistant,
+) -> None:
+    """A v2 string's forecast attribute has no clear-sky/temperature data."""
+    entry = _v2_entry(forecast_days=2)
+    entry.add_to_hass(hass)
+
+    with patch(V2_FORECAST, return_value=FAKE_V2_ONE_STRING):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.dachflache_1_power_forecast")
+    forecast = state.attributes["forecast"]
+    assert len(forecast) == 1
+    expected_dt = datetime(2026, 7, 13, 12, 0, tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    assert forecast[0] == {"datetime": expected_dt.isoformat(), "watts": 1000}
+
+
+async def test_total_power_forecast_attribute_sums_roofs(hass: HomeAssistant) -> None:
+    """The overview device's forecast sums per-roof watts and adds site data."""
+    entry = _v2_entry(forecast_days=2)
+    entry.add_to_hass(hass)
+
+    with patch(V2_FORECAST, return_value=FAKE_V2_TWO_STRINGS):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.pvnode_total_power_forecast")
+    forecast = state.attributes["forecast"]
+    assert len(forecast) == 1
+    expected_dt = datetime(2026, 7, 13, 12, 0, tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    assert forecast[0] == {
+        "datetime": expected_dt.isoformat(),
+        "watts": 1500,
+        "watts_clearsky": 1800,
+        "temperature": 21.0,
+        "weather_code": 1,
+    }
 
 
 async def test_stale_roof_device_removed_when_string_disappears(

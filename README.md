@@ -72,7 +72,8 @@ Integration dann keine Daten mehr über v1. Nutze für Neueinrichtungen API v2.
 Jede Dachfläche wird als **eigenes Gerät** angelegt (nicht zu einer
 gemeinsamen Entität zusammengefasst) mit folgenden Sensoren:
 
-- Leistungsprognose (W, aktueller Zeitschritt, inkl. Zeitreihe als Attribut)
+- Leistungsprognose (W, aktueller Zeitschritt, inkl. Zeitreihe als Attribut
+  `forecast`)
 - Energieprognose pro konfiguriertem Prognosetag (heute, morgen, ... –
   richtet sich nach der eingestellten Anzahl Prognosetage)
 - Klarhimmel-Leistung **nur bei API v1**, da dort jede Dachfläche einzeln
@@ -80,10 +81,24 @@ gemeinsamen Entität zusammengefasst) mit folgenden Sensoren:
 
 Zusätzlich legt die Integration immer ein **„pvnode“-Übersichtsgerät** an mit:
 
-- Gesamt-Leistungs- und Gesamt-Energieprognose (Summe aller Dachflächen)
+- Gesamt-Leistungs- und Gesamt-Energieprognose (Summe aller Dachflächen,
+  ebenfalls inkl. `forecast`-Attribut)
 - Gesamt-Klarhimmel-Leistung (bei API v1 die Summe aller Dachflächen, bei
   API v2 der von pvnode gelieferte Wert für die gesamte Anlage)
 - Temperaturprognose und Wettercode
+
+Das `forecast`-Attribut der Leistungssensoren enthält für jeden
+15-Minuten-Zeitschritt (nur Tageslichtstunden, über alle konfigurierten
+Prognosetage) ein Objekt mit `datetime` und `watts`, ergänzt um
+`watts_clearsky`, `temperature` und `weather_code`, sofern für diese
+Dachfläche verfügbar (bei API v1 und am Übersichtsgerät immer, bei API-v2-
+Dachflächen/Strings nur `watts`, da pvnode Klarhimmel/Temperatur/Wettercode
+dort nicht pro String liefert). Dieses Attribut wird bewusst **nicht** vom
+Recorder in der History-Datenbank gespeichert (`_unrecorded_attributes`), da
+es je nach Anzahl Prognosetage mehrere zehn KB groß werden kann. Für
+Auswertungen außerhalb von Home Assistant (z. B. InfluxDB) eignet es sich
+trotzdem, sofern die empfangende Integration selbst auf Zustandsänderungen
+reagiert und das Attribut auswertet.
 
 Temperatur, Wettercode und (bei API v2) Klarhimmel-Leistung sind
 Standort-/Anlageeigenschaften, die pvnode nicht pro Dachfläche/String liefert

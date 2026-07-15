@@ -10,7 +10,7 @@ those are site/location properties, not roof properties.
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -106,6 +106,32 @@ def _build_site_entities(
     return entities
 
 
+def _forecast_entries(
+    watts: dict[datetime, float],
+    *,
+    watts_clearsky: dict[datetime, float] | None = None,
+    temperature: dict[datetime, float] | None = None,
+    weather_code: dict[datetime, int] | None = None,
+) -> list[dict[str, Any]]:
+    """Build a sorted forecast time series, merging in whatever fields exist.
+
+    Clear-sky power/temperature/weather code aren't available for every roof
+    (e.g. pvnode API v2 strings only carry power), so each field is only
+    added to an entry when the corresponding timestamp is actually present.
+    """
+    entries: list[dict[str, Any]] = []
+    for timestamp, value in sorted(watts.items()):
+        entry: dict[str, Any] = {"datetime": timestamp.isoformat(), "watts": value}
+        if watts_clearsky and timestamp in watts_clearsky:
+            entry["watts_clearsky"] = watts_clearsky[timestamp]
+        if temperature and timestamp in temperature:
+            entry["temperature"] = temperature[timestamp]
+        if weather_code and timestamp in weather_code:
+            entry["weather_code"] = weather_code[timestamp]
+        entries.append(entry)
+    return entries
+
+
 class PvnodePowerSensor(PvnodeRoofEntity):
     """Current forecast power for a roof surface."""
 
@@ -138,15 +164,18 @@ class PvnodePowerSensor(PvnodeRoofEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return the full forecast time series for charting."""
+        """Return the full forecast time series for charting and export."""
         roof = self._roof
         if not roof:
             return None
+        forecast = roof.forecast
         return {
-            "forecast": [
-                {"datetime": timestamp.isoformat(), "watts": watts}
-                for timestamp, watts in sorted(roof.forecast.watts.items())
-            ]
+            "forecast": _forecast_entries(
+                forecast.watts,
+                watts_clearsky=forecast.watts_clearsky,
+                temperature=forecast.temperature,
+                weather_code=forecast.weather_code,
+            )
         }
 
 
@@ -211,6 +240,9 @@ class PvnodeTotalPowerSensor(PvnodeTotalEntity):
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_translation_key = "total_power"
+    # See PvnodePowerSensor: exclude the multi-day time series from the
+    # recorder, it can exceed the per-attribute size limit.
+    _unrecorded_attributes = frozenset({"forecast"})
 
     def __init__(
         self, coordinator: PvnodeDataUpdateCoordinator, entry: PvnodeConfigEntry
@@ -232,6 +264,25 @@ class PvnodeTotalPowerSensor(PvnodeTotalEntity):
                 total += value
                 found = True
         return total if found else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the combined forecast time series across all roof surfaces."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        total_watts: dict[datetime, float] = {}
+        for roof in data.roofs.values():
+            for timestamp, value in roof.forecast.watts.items():
+                total_watts[timestamp] = total_watts.get(timestamp, 0) + value
+        return {
+            "forecast": _forecast_entries(
+                total_watts,
+                watts_clearsky=data.site.watts_clearsky,
+                temperature=data.site.temperature,
+                weather_code=data.site.weather_code,
+            )
+        }
 
 
 class PvnodeTotalEnergySensor(PvnodeTotalEntity):
