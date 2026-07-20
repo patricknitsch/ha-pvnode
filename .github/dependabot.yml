@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # Python test/lint dependencies (requirements_test.txt)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Actions used by .github/workflows/test.yml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
