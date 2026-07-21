@@ -1,0 +1,11 @@
+{
+  "entity": {
+    "sensor": {
+      "power": { "default": "mdi:home-roof" },
+      "energy_today": { "default": "mdi:home-roof" },
+      "energy_tomorrow": { "default": "mdi:home-roof" },
+      "energy_offset": { "default": "mdi:home-roof" },
+      "clearsky_power": { "default": "mdi:home-roof" }
+    }
+  }
+}

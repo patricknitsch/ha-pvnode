@@ -72,7 +72,7 @@ class PvnodeTotalEntity(CoordinatorEntity[PvnodeDataUpdateCoordinator], SensorEn
         api_version = entry.data.get(CONF_API_VERSION, API_VERSION_V2).upper()
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
+            translation_key="overview",
             manufacturer=MANUFACTURER,
             model=f"pvnode API {api_version}",
             configuration_url="https://pvnode.com",
