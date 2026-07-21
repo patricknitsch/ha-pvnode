@@ -1,4 +1,9 @@
 {
+  "device": {
+    "overview": {
+      "name": "Summary"
+    }
+  },
   "config": {
     "step": {
       "user": {

@@ -97,14 +97,14 @@ async def test_v2_two_strings_creates_expected_entities(hass: HomeAssistant) -> 
     assert not any("clear_sky" in e for e in entity_ids if "dachflache" in e)
 
     # Site overview: total power + 2 energy-day + clearsky + temperature + weather_code.
-    assert "sensor.pvnode_total_power_forecast" in entity_ids
-    assert "sensor.pvnode_total_clear_sky_power" in entity_ids
-    assert "sensor.pvnode_temperature_forecast" in entity_ids
-    assert "sensor.pvnode_weather_code" in entity_ids
+    assert "sensor.summary_total_power_forecast" in entity_ids
+    assert "sensor.summary_total_clear_sky_power" in entity_ids
+    assert "sensor.summary_temperature_forecast" in entity_ids
+    assert "sensor.summary_weather_code" in entity_ids
 
     power_state = hass.states.get("sensor.dachflache_1_power_forecast")
     assert power_state.state == "1000"
-    total_state = hass.states.get("sensor.pvnode_total_power_forecast")
+    total_state = hass.states.get("sensor.summary_total_power_forecast")
     assert total_state.state == "1500.0"
 
 
@@ -200,18 +200,18 @@ async def test_v1_roof_power_forecast_attribute_has_only_watts(
     ]
 
     total_clearsky_forecast = hass.states.get(
-        "sensor.pvnode_total_clear_sky_power"
+        "sensor.summary_total_clear_sky_power"
     ).attributes["forecast"]
     assert total_clearsky_forecast == [
         {"datetime": expected_dt.isoformat(), "watts_clearsky": 600}
     ]
     temperature_forecast = hass.states.get(
-        "sensor.pvnode_temperature_forecast"
+        "sensor.summary_temperature_forecast"
     ).attributes["forecast"]
     assert temperature_forecast == [
         {"datetime": expected_dt.isoformat(), "temperature": 20.0}
     ]
-    weather_code_forecast = hass.states.get("sensor.pvnode_weather_code").attributes[
+    weather_code_forecast = hass.states.get("sensor.summary_weather_code").attributes[
         "forecast"
     ]
     assert weather_code_forecast == [
@@ -248,24 +248,24 @@ async def test_total_power_forecast_attribute_sums_roofs(hass: HomeAssistant) ->
 
     expected_dt = datetime(2026, 7, 13, 12, 0, tzinfo=dt_util.DEFAULT_TIME_ZONE)
 
-    power_forecast = hass.states.get("sensor.pvnode_total_power_forecast").attributes[
+    power_forecast = hass.states.get("sensor.summary_total_power_forecast").attributes[
         "forecast"
     ]
     assert power_forecast == [{"datetime": expected_dt.isoformat(), "watts": 1500}]
 
     clearsky_forecast = hass.states.get(
-        "sensor.pvnode_total_clear_sky_power"
+        "sensor.summary_total_clear_sky_power"
     ).attributes["forecast"]
     assert clearsky_forecast == [
         {"datetime": expected_dt.isoformat(), "watts_clearsky": 1800}
     ]
     temperature_forecast = hass.states.get(
-        "sensor.pvnode_temperature_forecast"
+        "sensor.summary_temperature_forecast"
     ).attributes["forecast"]
     assert temperature_forecast == [
         {"datetime": expected_dt.isoformat(), "temperature": 21.0}
     ]
-    weather_code_forecast = hass.states.get("sensor.pvnode_weather_code").attributes[
+    weather_code_forecast = hass.states.get("sensor.summary_weather_code").attributes[
         "forecast"
     ]
     assert weather_code_forecast == [
