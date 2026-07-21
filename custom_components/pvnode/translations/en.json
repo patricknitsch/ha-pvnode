@@ -112,14 +112,14 @@
   },
   "entity": {
     "sensor": {
-      "power": { "name": "Power forecast" },
+      "power": { "name": "Current power forecast" },
       "energy_today": { "name": "Energy forecast today" },
       "energy_tomorrow": { "name": "Energy forecast tomorrow" },
       "energy_offset": { "name": "Energy forecast in {day} days" },
       "clearsky_power": { "name": "Clear-sky power" },
       "temperature": { "name": "Temperature forecast" },
       "weather_code": { "name": "Weather code" },
-      "total_power": { "name": "Total power forecast" },
+      "total_power": { "name": "Total current power forecast" },
       "total_energy_today": { "name": "Total energy forecast today" },
       "total_energy_tomorrow": { "name": "Total energy forecast tomorrow" },
       "total_energy_offset": { "name": "Total energy forecast in {day} days" },

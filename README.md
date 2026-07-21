@@ -133,7 +133,7 @@ forecast by a different source.
 - **Energy Dashboard**: compare the solar forecast against actual production
   (see above).
 - **Automations**: e.g. start a consumer (EV charger, water heater) once
-  `sensor.pvnode_total_power_forecast` exceeds a threshold, or plan a battery
+  `sensor.summary_total_current_power_forecast` exceeds a threshold, or plan a battery
   storage charge state based on tomorrow's energy forecast.
 - **Shading/orientation comparison**: with multiple roof surfaces, compare
   the individual power forecasts, e.g. to spot a shaded surface.

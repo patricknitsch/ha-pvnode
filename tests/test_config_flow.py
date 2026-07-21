@@ -312,7 +312,7 @@ async def test_options_flow_general_and_roofs(hass: HomeAssistant) -> None:
             e.entity_id
             for e in er.async_entries_for_config_entry(entity_registry, entry.entry_id)
         }
-        assert "sensor.ost_power_forecast" in entity_ids
+        assert "sensor.ost_current_power_forecast" in entity_ids
 
         result = await hass.config_entries.options.async_init(entry.entry_id)
         result = await hass.config_entries.options.async_configure(
