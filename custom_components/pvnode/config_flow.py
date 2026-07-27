@@ -199,7 +199,7 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except PvnodeError:
                 errors["base"] = "unknown"
-            except Exception:  # noqa: BLE001 - never crash the setup wizard
+            except Exception:
                 _LOGGER.exception("Unexpected error validating pvnode site %s", site_id)
                 errors["base"] = "unknown"
             else:
@@ -254,7 +254,7 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "cannot_connect"
                 except PvnodeError:
                     errors["base"] = "unknown"
-                except Exception:  # noqa: BLE001 - never crash the setup wizard
+                except Exception:
                     _LOGGER.exception("Unexpected error validating pvnode roof surface")
                     errors["base"] = "unknown"
 
@@ -331,7 +331,7 @@ class PvnodeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return "cannot_connect"
         except PvnodeError:
             return "unknown"
-        except Exception:  # noqa: BLE001 - never crash the setup wizard
+        except Exception:
             _LOGGER.exception("Unexpected error testing the pvnode connection")
             return "unknown"
         return None
