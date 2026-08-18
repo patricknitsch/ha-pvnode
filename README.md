@@ -8,6 +8,12 @@ It follows the pvnode integration of the ioBroker adapter
 [ioBroker.pvforecast](https://github.com/iobroker-community-adapters/ioBroker.pvforecast)
 and supports both **API v1** and **API v2**.
 
+
+# IMPORTANT NOTE:
+
+Futurely please use the official integration from the pvnode team. You will find the link below. This integration is no longer under maintenance.
+**https://github.com/darwindaume/ha-pvnode**
+
 ## Prerequisites
 
 - A [pvnode](https://pvnode.com) account with an API key.
